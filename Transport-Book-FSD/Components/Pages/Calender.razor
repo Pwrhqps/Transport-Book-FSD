@@ -1,0 +1,19 @@
+﻿@page "/Calender"
+
+<PageTitle>Calender</PageTitle>
+
+<iframe 
+    src="https://calendar.google.com/calendar/embed?src=b3567c135a99a30228ac9f5a8aa5056d4200e03cecdd39a1445d84788519309c%40group.calendar.google.com&ctz=Asia%2FSingapore"
+    style="border: 0"
+    width="@((int)(800 * multiplier))"
+    height="@((int)(500 * multiplier))"
+    frameborder="0"
+    scrolling="no">
+</iframe>
+
+@code {
+    double multiplier = 1.3; //calender size multiplier
+    // You can add any additional C# code or logic here if needed in the future.
+    // Only allow drivers to access this page.
+    // Most likely used for hitch drivers to check their schedule.
+}

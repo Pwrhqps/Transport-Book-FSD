@@ -1,7 +1,36 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\layout\\navmenu.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\layout\\navmenu.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\pages\\maps.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\pages\\maps.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\pages\\calender.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\pages\\calender.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\layout\\navmenu.razor.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\layout\\navmenu.razor.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\layout\\mainlayout.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\layout\\mainlayout.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\pages\\error.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\pages\\error.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|c:\\users\\yiren\\source\\repos\\transport-book-fsd\\transport-book-fsd\\components\\pages\\home.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{A974273B-E0B4-EB33-FC0F-C1B5182ABF38}|Transport-Book-FSD\\Transport-Book-FSD.csproj|solutionrelative:transport-book-fsd\\components\\pages\\home.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,11 +38,102 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Bookmark",
-              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "NavMenu.razor.css",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\NavMenu.razor.css",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Layout\\NavMenu.razor.css",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\NavMenu.razor.css",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Layout\\NavMenu.razor.css",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2025-12-01T06:51:02.676Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "MainLayout.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\MainLayout.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Layout\\MainLayout.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\MainLayout.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Layout\\MainLayout.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAOAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T06:49:43.63Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "NavMenu.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\NavMenu.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Layout\\NavMenu.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Layout\\NavMenu.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Layout\\NavMenu.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAABYAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T06:49:39.518Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Error.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Error.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Pages\\Error.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Error.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Pages\\Error.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T06:49:30.533Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Maps.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Maps.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Pages\\Maps.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Maps.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Pages\\Maps.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAHAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T06:32:58.999Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Home.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Home.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Pages\\Home.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Home.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Pages\\Home.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T02:35:16.844Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Calender.razor",
+              "DocumentMoniker": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Calender.razor",
+              "RelativeDocumentMoniker": "Transport-Book-FSD\\Components\\Pages\\Calender.razor",
+              "ToolTip": "C:\\Users\\Yiren\\source\\repos\\Transport-Book-FSD\\Transport-Book-FSD\\Components\\Pages\\Calender.razor",
+              "RelativeToolTip": "Transport-Book-FSD\\Components\\Pages\\Calender.razor",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2025-12-01T02:16:51.949Z",
+              "EditorCaption": ""
             }
           ]
         }
