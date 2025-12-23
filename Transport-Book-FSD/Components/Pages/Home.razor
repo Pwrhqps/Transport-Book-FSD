@@ -1,7 +1,122 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Transport Booking</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container py-4">
 
-Welcome to your new app.
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0">Login/Register</h2>
+            <small class="text-muted">Book your ride safely and easily.</small>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a class="btn btn-dark" href="/auth/login">Login</a>
+            <a class="btn btn-outline-dark" href="/auth/register">Register</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <h5 class="fw-bold">About Us</h5>
+            <div class="row g-3">
+                <div class="col-4">
+                    <div class="card h-100">
+                        <img class="card-img-top" src="https://picsum.photos/seed/about1/400/250" />
+                        <div class="card-body">
+                            <small class="text-muted">Safe rides</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card h-100">
+                        <img class="card-img-top" src="https://picsum.photos/seed/about2/400/250" />
+                        <div class="card-body">
+                            <small class="text-muted">Reliable drivers</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card h-100">
+                        <img class="card-img-top" src="https://picsum.photos/seed/about3/400/250" />
+                        <div class="card-body">
+                            <small class="text-muted">Fast booking</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h5 class="fw-bold">FAQ</h5>
+                <div class="accordion" id="faqAcc">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                How do I book a ride?
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAcc">
+                            <div class="accordion-body">
+                                Register/Login, go to Book Ride, enter pickup & dropoff, then confirm.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                What payment methods are supported?
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAcc">
+                            <div class="accordion-body">
+                                Card, PayNow, and E-wallet (can be expanded later).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-6">
+            <h5 class="fw-bold">Contact Us</h5>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div><strong>Hp No:</strong> 81234567</div>
+                    <div><strong>Email:</strong> transportbook@gmail.com</div>
+                </div>
+            </div>
+
+            <h5 class="fw-bold">Feedback & Reviews</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-bold">“Nice driver & safe ride!”</div>
+                            <small class="text-muted">★★★★★</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-bold">“Booking was very easy.”</div>
+                            <small class="text-muted">★★★★★</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-bold">“Fast pickup time.”</div>
+                            <small class="text-muted">★★★★☆</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>

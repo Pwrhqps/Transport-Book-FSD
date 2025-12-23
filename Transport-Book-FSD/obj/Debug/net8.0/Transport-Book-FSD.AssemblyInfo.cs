@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Transport-Book-FSD")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9dda2a04fc038a91def038165406012e3c04c741")]
 [assembly: System.Reflection.AssemblyProductAttribute("Transport-Book-FSD")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Transport-Book-FSD")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
