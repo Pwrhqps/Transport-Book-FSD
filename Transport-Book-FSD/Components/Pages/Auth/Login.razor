@@ -1,78 +1,31 @@
 ﻿@page "/auth/login"
-@using Microsoft.AspNetCore.Identity
-@using Transport_Book_FSD.Models
-@inject SignInManager<ApplicationUser> SignInManager
-@inject UserManager<ApplicationUser> UserManager
+@rendermode InteractiveServer
 @inject NavigationManager Nav
 
 <h3>Login</h3>
 
 <div class="row">
     <div class="col-md-6">
-        <EditForm Model="form" OnValidSubmit="LoginUser">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
 
+        @if (Nav.ToAbsoluteUri(Nav.Uri).Query.Contains("error=1"))
+        {
+            <div class="text-danger mb-3">Invalid login attempt.</div>
+        }
+
+        <form method="post" action="/auth/login-post">
             <div class="mb-3">
                 <label class="form-label">Email</label>
-                <InputText class="form-control" @bind-Value="form.Email" />
+                <input class="form-control" name="Email" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Password</label>
-                <InputText class="form-control" type="password" @bind-Value="form.Password" />
+                <input class="form-control" type="password" name="Password" />
             </div>
 
-            <button class="btn btn-dark">Login</button>
+            <button class="btn btn-dark" type="submit">Login</button>
             <a class="btn btn-outline-dark ms-2" href="/auth/register">Register</a>
-        </EditForm>
+        </form>
 
-        @if (!string.IsNullOrEmpty(errorMsg))
-        {
-            <div class="text-danger mt-3">@errorMsg</div>
-        }
     </div>
 </div>
-
-@code {
-    private LoginForm form = new();
-    private string? errorMsg;
-
-    private async Task LoginUser()
-    {
-        errorMsg = null;
-
-        var result = await SignInManager.PasswordSignInAsync(
-            form.Email, form.Password, isPersistent: false, lockoutOnFailure: false);
-
-        if (!result.Succeeded)
-        {
-            errorMsg = "Invalid login attempt.";
-            return;
-        }
-
-        var user = await UserManager.FindByEmailAsync(form.Email);
-        if (user == null)
-        {
-            errorMsg = "User not found.";
-            return;
-        }
-
-        // Redirect based on role
-        if (await UserManager.IsInRoleAsync(user, "Passenger"))
-            Nav.NavigateTo("/passenger/home", true);
-        else if (await UserManager.IsInRoleAsync(user, "Driver"))
-            Nav.NavigateTo("/driver/home", true);
-        else
-            Nav.NavigateTo("/", true);
-    }
-
-    private class LoginForm
-    {
-        [System.ComponentModel.DataAnnotations.Required]
-        public string Email { get; set; } = "";
-
-        [System.ComponentModel.DataAnnotations.Required]
-        public string Password { get; set; } = "";
-    }
-}
