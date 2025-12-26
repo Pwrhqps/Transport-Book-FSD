@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Transport_Book_FSD.Components;
 using Transport_Book_FSD.Data;
@@ -26,7 +29,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.AddHttpContextAccessor();   // ✅ important
 
+// ✅ Authorization + Blazor auth state (so NavMenu / AuthorizeView can react)
 builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
 
@@ -71,6 +76,13 @@ app.MapPost("/auth/login-post", async (
 
     return Results.Redirect("/");
 }).DisableAntiforgery(); // simplest for now (you can enable later)
+
+// ✅ LOGOUT endpoint (HTTP POST)
+app.MapPost("/auth/logout", async (HttpContext http) =>
+{
+    await http.SignOutAsync(IdentityConstants.ApplicationScheme);
+    return Results.Redirect("/");
+}).DisableAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

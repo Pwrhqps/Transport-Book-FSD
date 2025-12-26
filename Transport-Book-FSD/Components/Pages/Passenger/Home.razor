@@ -1,3 +1,6 @@
-﻿@page "/passenger/home"
+﻿@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Passenger")]
+
+@page "/passenger/home"
 <h3>Passenger Home</h3>
 <p>Welcome Passenger.</p>

@@ -1,3 +1,6 @@
-﻿@page "/driver/home"
+﻿@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Driver")]
+
+@page "/driver/home"
 <h3>Driver Home</h3>
 <p>Welcome Driver.</p>
