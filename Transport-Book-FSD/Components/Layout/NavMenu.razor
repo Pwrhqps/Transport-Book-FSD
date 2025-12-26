@@ -32,6 +32,13 @@
                         <span class="bi bi-person-plus" aria-hidden="true"></span> Register
                     </NavLink>
                 </div>
+
+                <!-- ✅ Staff Login (only when NOT logged in) -->
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="auth/staff-login">
+                        <span class="bi bi-shield-lock" aria-hidden="true"></span> Staff Login
+                    </NavLink>
+                </div>
             </NotAuthorized>
 
             <Authorized>
@@ -57,6 +64,15 @@
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="driver/home">
                             <span class="bi bi-car-front" aria-hidden="true"></span> Driver Home
+                        </NavLink>
+                    </div>
+                }
+
+                @if (auth.User.IsInRole("Staff"))
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="staff">
+                            <span class="bi bi-person-badge" aria-hidden="true"></span> Staff Dashboard
                         </NavLink>
                     </div>
                 }

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Transport_Book_FSD.Models;
 
 namespace Transport_Book_FSD.Data
@@ -19,8 +18,10 @@ namespace Transport_Book_FSD.Data
                     await roleMgr.CreateAsync(new IdentityRole(r));
             }
 
-            // Staff seeded only
+            // ✅ Staff seeded
             var staffEmail = "staff@transport.com";
+            var staffPassword = "Staff1234!";
+
             var staffUser = await userMgr.FindByEmailAsync(staffEmail);
 
             if (staffUser == null)
@@ -28,10 +29,20 @@ namespace Transport_Book_FSD.Data
                 staffUser = new ApplicationUser
                 {
                     UserName = staffEmail,
-                    Email = staffEmail
+                    Email = staffEmail,
+                    EmailConfirmed = true
                 };
 
-                await userMgr.CreateAsync(staffUser, "Staff1234!");
+                var createResult = await userMgr.CreateAsync(staffUser, staffPassword);
+
+                // If create failed, stop silently to avoid crashing startup
+                if (!createResult.Succeeded)
+                    return;
+            }
+
+            // ✅ Always ensure Staff role is assigned (even if user already existed)
+            if (!await userMgr.IsInRoleAsync(staffUser, "Staff"))
+            {
                 await userMgr.AddToRoleAsync(staffUser, "Staff");
             }
         }

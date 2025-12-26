@@ -1,6 +1,4 @@
 ﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Transport_Book_FSD.Components;
@@ -27,9 +25,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-builder.Services.AddHttpContextAccessor();   // ✅ important
+builder.Services.AddHttpContextAccessor();
 
-// ✅ Authorization + Blazor auth state (so NavMenu / AuthorizeView can react)
+// ✅ Authorization + Blazor auth state
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 
@@ -74,8 +72,37 @@ app.MapPost("/auth/login-post", async (
     if (await userManager.IsInRoleAsync(user, "Driver"))
         return Results.Redirect("/driver/home");
 
+    if (await userManager.IsInRoleAsync(user, "Staff"))
+        return Results.Redirect("/staff");
+
     return Results.Redirect("/");
-}).DisableAntiforgery(); // simplest for now (you can enable later)
+}).DisableAntiforgery();
+
+// ✅ STAFF LOGIN endpoint (HTTP POST) - only Staff can login here
+app.MapPost("/auth/staff-login-post", async (
+    HttpContext http,
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var email = form["Email"].ToString();
+    var password = form["Password"].ToString();
+
+    var user = await userManager.FindByEmailAsync(email);
+    if (user == null)
+        return Results.Redirect("/auth/staff-login?error=1");
+
+    if (!await userManager.IsInRoleAsync(user, "Staff"))
+        return Results.Redirect("/auth/staff-login?notstaff=1");
+
+    var result = await signInManager.PasswordSignInAsync(
+        email, password, isPersistent: false, lockoutOnFailure: false);
+
+    if (!result.Succeeded)
+        return Results.Redirect("/auth/staff-login?error=1");
+
+    return Results.Redirect("/staff");
+}).DisableAntiforgery();
 
 // ✅ LOGOUT endpoint (HTTP POST)
 app.MapPost("/auth/logout", async (HttpContext http) =>
