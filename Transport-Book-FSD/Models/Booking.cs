@@ -19,8 +19,15 @@ namespace Transport_Book_FSD.Models
         [StringLength(20)]
         public string Status { get; set; } = "Pending";
 
-        public int? DriverId { get; set; }  // nullable for now (driver team later)
-
         public decimal Fare { get; set; }
+
+        public int? DriverId { get; set; }     // assigned driver
+       
+        public DateTime? AcceptedAt { get; set; }
+
+        public bool IsPaid { get; set; }
+        
+        public DateTime? PaidAt { get; set; }
+
     }
 }

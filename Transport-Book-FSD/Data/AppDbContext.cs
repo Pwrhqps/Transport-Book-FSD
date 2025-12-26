@@ -16,6 +16,6 @@ namespace Transport_Book_FSD.Data
         public DbSet<Payment> Payments { get; set; }
         public DbSet<Feedback> Feedbacks { get; set; }
         public DbSet<PassengerProfile> PassengerProfiles { get; set; }
-
+        public DbSet<DriverProfile> DriverProfiles { get; set; }
     }
 }
