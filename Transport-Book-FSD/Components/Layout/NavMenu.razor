@@ -43,6 +43,13 @@
                             <span class="bi bi-person" aria-hidden="true"></span> Passenger Home
                         </NavLink>
                     </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="passenger/profile">
+                            <span class="bi bi-person-vcard" aria-hidden="true"></span> My Profile
+                        </NavLink>
+                    </div>
+
                 }
 
                 @if (auth.User.IsInRole("Driver"))

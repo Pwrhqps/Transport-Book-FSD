@@ -1,6 +1,75 @@
-﻿@using Microsoft.AspNetCore.Authorization
+﻿@page "/passenger/home"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
 @attribute [Authorize(Roles = "Passenger")]
 
-@page "/passenger/home"
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject NavigationManager nav
+@inject AuthenticationStateProvider authStateProvider
+
 <h3>Passenger Home</h3>
 <p>Welcome Passenger.</p>
+
+@if (isLoading)
+{
+    <p>Loading profile...</p>
+}
+else if (profile == null)
+{
+    <p>No profile found.</p>
+    <button class="btn btn-dark" @onclick="@(() => nav.NavigateTo("/passenger/profile"))">Create Profile</button>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-header fw-bold">My Profile</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2"><b>Full Name:</b> @profile.FullName</div>
+                    <div class="mb-2"><b>Contact:</b> @profile.ContactNumber</div>
+                    <div class="mb-2"><b>Gender:</b> @profile.Gender</div>
+                    <div class="mb-2">
+                        <b>Date of Birth:</b> @(profile.DateOfBirth.HasValue? profile.DateOfBirth.Value.ToString("dd/MM/yyyy") : "")
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-2"><b>Address:</b> @profile.ResidentialAddress</div>
+                    <div class="mb-2"><b>Emergency Contact:</b> @profile.EmergencyContact</div>
+                    <div class="mb-2"><b>Total Completed Trips:</b> @profile.TotalCompletedTrips</div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-dark" @onclick="@(() => nav.NavigateTo("/passenger/profile"))">
+                    Go to Profile
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PassengerProfile? profile;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        var user = await userManager.GetUserAsync(principal);
+        if (user != null)
+        {
+            profile = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
+        }
+
+        isLoading = false;
+    }
+}
