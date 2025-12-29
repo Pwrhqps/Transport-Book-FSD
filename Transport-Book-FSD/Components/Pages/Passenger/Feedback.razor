@@ -1,0 +1,229 @@
+﻿@page "/passenger/feedback/{bookingId:int}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Ride Feedback</h3>
+
+<button class="btn btn-outline-dark mb-3" @onclick="Back">Back to Booking History</button>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (booking == null)
+{
+    <p>Booking not found.</p>
+}
+else
+{
+    <div class="mb-3">
+        <div><b>Pickup:</b> @booking.PickupLocation</div>
+        <div><b>Dropoff:</b> @booking.DropoffLocation</div>
+        <div><b>Pickup Time:</b> @booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
+        <div><b>Status:</b> @booking.Status</div>
+        <div><b>Fare:</b> @booking.Fare.ToString("0.00")</div>
+    </div>
+
+    <div class="mb-3">
+        <div><b>Driver Plate:</b> @(driverPlate ?? "-")</div>
+        <div><b>Driver Name:</b> @(driverName ?? "-")</div>
+    </div>
+
+    @if (!isAllowed)
+    {
+        <div class="alert alert-warning">
+            Feedback is only available for completed rides (not cancellation penalties).
+        </div>
+    }
+    else if (existingFeedback != null)
+    {
+        <div class="alert alert-success">
+            You already submitted feedback for this ride.
+        </div>
+
+        <div class="mb-2">
+            <b>Your Rating:</b> @existingFeedback.Rating @GetStars(existingFeedback.Rating)
+        </div>
+        <div class="mb-3"><b>Your Comment:</b> @(string.IsNullOrEmpty(existingFeedback.Comment) ? "-" : existingFeedback.Comment)</div>
+        <div class="text-muted"><b>Submitted:</b> @existingFeedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+    }
+    else
+    {
+        <div class="mb-3" style="max-width: 450px;">
+            <label class="form-label"><b>Rating (1 to 5)</b></label>
+            <select class="form-select" @bind="rating">
+                <option value="5">5⭐⭐⭐⭐⭐ - Excellent</option>
+                <option value="4">4⭐⭐⭐⭐ - Good</option>
+                <option value="3">3⭐⭐⭐ - Okay</option>
+                <option value="2">2⭐⭐ - Bad</option>
+                <option value="1">1⭐ - Terrible</option>
+            </select>
+        </div>
+
+        <div class="mb-3" style="max-width: 600px;">
+            <label class="form-label"><b>Comments (optional)</b></label>
+            <textarea class="form-control" rows="4" @bind="comment"></textarea>
+        </div>
+
+        <button class="btn btn-dark" @onclick="Submit">Submit</button>
+    }
+}
+
+@code {
+    [Parameter] public int bookingId { get; set; }
+
+    private bool isLoading = true;
+    private string? msg;
+
+    private Booking? booking;
+
+    private string? driverPlate;
+    private string? driverName;
+
+    private bool isAllowed = false;
+
+    private int rating = 5;
+    private string? comment;
+
+    // ✅ IMPORTANT: fully qualify model type (prevents name clash with Feedback.razor page)
+    private Transport_Book_FSD.Models.Feedback? existingFeedback;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/passenger/bookinghistory");
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            msg = "Passenger record not found.";
+            isLoading = false;
+            return;
+        }
+
+        booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        if (booking == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        // only completed rides can give feedback
+        isAllowed = (booking.Status == "Completed");
+
+        // load driver info (Booking.DriverId == DriverProfileId)
+        if (booking.DriverId.HasValue)
+        {
+            var d = db.DriverProfiles.FirstOrDefault(x => x.DriverProfileId == booking.DriverId.Value);
+            if (d != null)
+            {
+                driverPlate = d.VehiclePlate;
+                driverName = d.FullName;
+            }
+        }
+
+        // 1 feedback per booking
+        existingFeedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
+
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Please login again.";
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            msg = "Passenger record not found.";
+            return;
+        }
+
+        var b = db.Bookings.FirstOrDefault(x => x.BookingId == bookingId && x.PassengerId == passenger.PassengerId);
+        if (b == null)
+        {
+            msg = "Booking not found.";
+            return;
+        }
+
+        if (b.Status != "Completed")
+        {
+            msg = "Feedback is only available for completed rides.";
+            return;
+        }
+
+        var exists = db.Feedbacks.FirstOrDefault(f => f.BookingId == b.BookingId);
+        if (exists != null)
+        {
+            msg = "You already submitted feedback for this ride.";
+            existingFeedback = exists;
+            return;
+        }
+
+        // ✅ IMPORTANT: fully qualify model type (prevents Feedback page class conflict)
+        var fb = new Transport_Book_FSD.Models.Feedback
+        {
+            BookingId = b.BookingId,
+            Rating = rating,
+            Comment = comment,
+            CreatedAt = DateTime.Now
+        };
+
+        db.Feedbacks.Add(fb);
+        await db.SaveChangesAsync();
+
+        msg = "Feedback submitted!";
+        await Load();
+    }
+
+    private string GetStars(int rating)
+    {
+        return new string('⭐', rating);
+    }
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
+    }
+}

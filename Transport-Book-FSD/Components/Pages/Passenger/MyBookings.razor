@@ -64,6 +64,13 @@ else
                                 Cancel
                             </button>
                         }
+                        else if (b.Status == "Cancelled" && b.Fare == 0.00m)
+                        {
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => DeleteBooking(b.BookingId)">
+                                Delete
+                            </button>
+                        }
                         else if (b.Status == "Cancelled" && b.Fare == 2.00m && !b.IsPaid)
                         {
                             <button class="btn btn-sm btn-outline-primary"
@@ -118,17 +125,19 @@ else
     private async Task LoadBookings()
     {
         isLoading = true;
-        msg = null;
 
-        var user = await GetCurrentUser();
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
         if (user == null)
         {
-            msg = "Unable to load bookings. Please login again.";
+            bookings = new List<Booking>();
             isLoading = false;
             return;
         }
 
         var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+
         if (passenger == null)
         {
             bookings = new List<Booking>();
@@ -136,16 +145,18 @@ else
             return;
         }
 
-        // Hide cancelled bookings UNLESS it is an accepted-cancel penalty booking (fare == 2.00)
+        // ✅ My Bookings = NOT "Paid history"
+        // Paid history = (IsPaid == true) AND (Completed OR Cancelled penalty)
         bookings = db.Bookings
             .Where(b => b.PassengerId == passenger.PassengerId &&
-                   (b.Status != "Cancelled" || b.Fare == 2.00m))
-            .OrderBy(b => b.PickupDateTime)   // earliest -> latest
-            .ThenBy(b => b.BookingId)
+                   !(b.IsPaid && (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m))))
+            .OrderByDescending(b => b.PickupDateTime)
+            .ThenByDescending(b => b.BookingId)
             .ToList();
 
         isLoading = false;
     }
+
 
     private async Task CancelBooking(int bookingId)
     {
@@ -204,6 +215,45 @@ else
         }
 
         msg = "This booking cannot be cancelled.";
+    }
+
+    private async Task DeleteBooking(int bookingId)
+    {
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Unable to delete booking. Please login again.";
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            msg = "Passenger record not found.";
+            return;
+        }
+
+        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        if (booking == null)
+        {
+            msg = "Booking not found.";
+            return;
+        }
+
+        // Only allow delete for successful cancellations (no penalty)
+        if (booking.Status != "Cancelled" || booking.Fare != 0.00m)
+        {
+            msg = "Only cancelled bookings with no penalty can be deleted.";
+            return;
+        }
+
+        db.Bookings.Remove(booking);
+        await db.SaveChangesAsync();
+
+        msg = "Cancelled booking deleted.";
+        await LoadBookings();
     }
 
     private async Task<ApplicationUser?> GetCurrentUser()

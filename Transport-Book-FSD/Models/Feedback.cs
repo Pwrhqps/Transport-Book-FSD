@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
 
 namespace Transport_Book_FSD.Models
 {
@@ -7,13 +7,12 @@ namespace Transport_Book_FSD.Models
         public int FeedbackId { get; set; }
 
         public int BookingId { get; set; }
+        public int PassengerId { get; set; }
+        public int? DriverId { get; set; }
 
-        [Range(1, 5)]
         public int Rating { get; set; }
-
-        [StringLength(300)]
         public string? Comment { get; set; }
 
-        public DateTime CreatedDate { get; set; } = DateTime.Now;
+        public DateTime CreatedAt { get; set; }
     }
 }

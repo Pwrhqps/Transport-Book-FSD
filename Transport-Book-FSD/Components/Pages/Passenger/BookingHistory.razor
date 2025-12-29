@@ -1,0 +1,136 @@
+﻿@page "/passenger/bookinghistory"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Booking History</h3>
+
+<button class="btn btn-outline-dark mb-3" @onclick="Back">Back to My Bookings</button>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading history...</p>
+}
+else if (history.Count == 0)
+{
+    <p>No booking history yet.</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Status</th>
+                <th>Fare</th>
+                <th>Paid At</th>
+                <th>Feedback</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var b in history)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@b.PickupLocation</td>
+                    <td>@b.DropoffLocation</td>
+                    <td>@b.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@b.Status</td>
+                    <td>@b.Fare.ToString("0.00")</td>
+                    <td>@(b.PaidAt.HasValue? b.PaidAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                    <td>
+                        @if (b.Status == "Completed")
+                        {
+                            <button class="btn btn-sm btn-outline-dark"
+                                    @onclick="() => GoFeedback(b.BookingId)">
+                                Feedback
+                            </button>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private List<Booking> history = new();
+    private string? msg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistory();
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/passenger/mybookings");
+    }
+
+    private async Task LoadHistory()
+    {
+        isLoading = true;
+        msg = null;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to load booking history. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            history = new List<Booking>();
+            isLoading = false;
+            return;
+        }
+
+        // Booking History shows "finished" items that are already paid:
+        // - Paid Completed rides
+        // - Paid cancellation penalty bookings (Fare == 2.00)
+        history = db.Bookings
+            .Where(b => b.PassengerId == passenger.PassengerId &&
+                   b.IsPaid &&
+                   (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+            .OrderByDescending(b => b.PaidAt)
+            .ThenByDescending(b => b.BookingId)
+            .ToList();
+
+        isLoading = false;
+    }
+    private void GoFeedback(int bookingId)
+    {
+        nav.NavigateTo($"/passenger/feedback/{bookingId}");
+    }
+}
