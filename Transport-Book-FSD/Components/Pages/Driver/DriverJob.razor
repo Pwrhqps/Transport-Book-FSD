@@ -1,0 +1,166 @@
+﻿@page "/driver/job/{BookingId:int}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+@inject IJSRuntime JS
+
+<h3>Job Details</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading job...</p>
+}
+else if (job == null)
+{
+    <p>Job not found.</p>
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+else
+{
+    <div class="card">
+        <div class="card-header fw-bold">
+            Booking #@job.BookingId
+        </div>
+        <div class="card-body">
+            <div class="mb-2"><b>Pickup:</b> @job.PickupLocation</div>
+            <div class="mb-2"><b>Dropoff:</b> @job.DropoffLocation</div>
+            <div class="mb-2"><b>Pickup Time:</b> @job.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
+            <div class="mb-2"><b>Status:</b> @job.Status</div>
+            <div class="mb-2"><b>Fare:</b> @job.Fare.ToString("0.00")</div>
+            <div class="mb-2"><b>Accepted At:</b> @(job.AcceptedAt.HasValue? job.AcceptedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</div>
+
+            <hr />
+
+            @if (job.Status == "Accepted")
+            {
+                <button class="btn btn-dark" @onclick="ConfirmComplete">
+                    Complete Job
+                </button>
+            }
+            else if (job.Status == "Completed")
+            {
+                <span class="text-success fw-bold">This job is completed.</span>
+            }
+
+            <button class="btn btn-outline-dark ms-2" @onclick="Back">Back</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int BookingId { get; set; }
+
+    private bool isLoading = true;
+    private string? msg;
+
+    private Booking? job;
+    private DriverProfile? driver;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJob();
+    }
+
+    private async Task LoadJob()
+    {
+        isLoading = true;
+        msg = null;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            isLoading = false;
+            return;
+        }
+
+        job = db.Bookings.FirstOrDefault(b => b.BookingId == BookingId);
+
+        // safety: driver can only view their own accepted/completed job
+        if (job == null || job.DriverId != driver.DriverProfileId)
+        {
+            job = null;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task ConfirmComplete()
+    {
+        bool confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Are you sure you want to mark this job as completed?\nThis action cannot be undone."
+        );
+
+        if (confirmed)
+        {
+            await CompleteJob();
+        }
+    }
+
+    private async Task CompleteJob()
+    {
+        msg = null;
+
+        if (job == null || driver == null)
+            return;
+
+        if (job.Status != "Accepted")
+        {
+            msg = "Only accepted jobs can be completed.";
+            return;
+        }
+
+        // Update booking
+        job.Status = "Completed";
+
+        // Update driver stats
+        driver.TotalCompletedTrips += 1;
+        driver.TotalEarnings += job.Fare;
+
+        // Update passenger completed trips (by passenger's userId)
+        var passenger = db.Passengers.FirstOrDefault(p => p.PassengerId == job.PassengerId);
+        if (passenger != null)
+        {
+            var passengerProfile = db.PassengerProfiles.FirstOrDefault(pp => pp.UserId == passenger.UserId);
+            if (passengerProfile != null)
+            {
+                passengerProfile.TotalCompletedTrips += 1;
+            }
+        }
+
+        await db.SaveChangesAsync();
+
+        msg = "Job marked as completed.";
+        await LoadJob();
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/driver/myjobs");
+    }
+}

@@ -1,0 +1,215 @@
+﻿@page "/passenger/mybookings"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>My Bookings</h3>
+
+<button class="btn btn-dark mb-3" @onclick="GoBook">+ Book Another Ride</button>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading bookings...</p>
+}
+else if (bookings.Count == 0)
+{
+    <p>No bookings yet.</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Status</th>
+                <th>Fare</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var b in bookings)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@b.PickupLocation</td>
+                    <td>@b.DropoffLocation</td>
+                    <td>@b.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@b.Status</td>
+                    <td>@b.Fare.ToString("0.00")</td>
+                    <td>
+                        @if (b.Status == "Pending" || b.Status == "Accepted")
+                        {
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => CancelBooking(b.BookingId)">
+                                Cancel
+                            </button>
+                        }
+                        else if (b.Status == "Cancelled" && b.Fare == 2.00m && !b.IsPaid)
+                        {
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => GoPayment(b.BookingId)">
+                                To Payment
+                            </button>
+                        }
+                        else if (b.Status == "Completed" && !b.IsPaid)
+                        {
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => GoPayment(b.BookingId)">
+                                To Payment
+                            </button>
+                        }
+                        else if ((b.Status == "Completed" || b.Status == "Cancelled") && b.IsPaid)
+                        {
+                            <span class="text-success fw-bold">Paid</span>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private List<Booking> bookings = new();
+    private string? msg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookings();
+    }
+
+    private void GoBook()
+    {
+        nav.NavigateTo("/passenger/book");
+    }
+
+    private void GoPayment(int bookingId)
+    {
+        // Payment page can be done later
+        nav.NavigateTo($"/passenger/payment/{bookingId}");
+    }
+
+    private async Task LoadBookings()
+    {
+        isLoading = true;
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Unable to load bookings. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            bookings = new List<Booking>();
+            isLoading = false;
+            return;
+        }
+
+        // Hide cancelled bookings UNLESS it is an accepted-cancel penalty booking (fare == 2.00)
+        bookings = db.Bookings
+            .Where(b => b.PassengerId == passenger.PassengerId &&
+                   (b.Status != "Cancelled" || b.Fare == 2.00m))
+            .OrderBy(b => b.PickupDateTime)   // earliest -> latest
+            .ThenBy(b => b.BookingId)
+            .ToList();
+
+        isLoading = false;
+    }
+
+    private async Task CancelBooking(int bookingId)
+    {
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Unable to cancel booking. Please login again.";
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            msg = "Passenger record not found.";
+            return;
+        }
+
+        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        if (booking == null)
+        {
+            msg = "Booking not found.";
+            return;
+        }
+
+        // cannot cancel these
+        if (booking.Status == "Completed" || booking.Status == "Cancelled")
+        {
+            msg = "This booking cannot be cancelled.";
+            return;
+        }
+
+        // Pending cancel -> disappear from list (because we filter Status == Cancelled)
+        if (booking.Status == "Pending")
+        {
+            booking.Status = "Cancelled";
+            await db.SaveChangesAsync();
+
+            msg = $"Booking cancelled.";
+            await LoadBookings();
+            return;
+        }
+
+        // Accepted cancel -> becomes Cancelled with $2 penalty fare + show To Payment
+        if (booking.Status == "Accepted")
+        {
+            booking.Status = "Cancelled";
+            booking.Fare = 2.00m;
+
+            await db.SaveChangesAsync();
+
+            msg = $"Booking cancelled. $2 penalty is payable.";
+            await LoadBookings();
+            return;
+        }
+
+        msg = "This booking cannot be cancelled.";
+    }
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+        return await userManager.GetUserAsync(principal);
+    }
+}

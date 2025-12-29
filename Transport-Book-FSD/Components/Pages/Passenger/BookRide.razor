@@ -1,0 +1,129 @@
+﻿@page "/passenger/book"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Book a Ride</h3>
+
+<EditForm Model="form" OnValidSubmit="SubmitBooking">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Pickup Location</label>
+        <InputText class="form-control" @bind-Value="form.PickupLocation" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Dropoff Location</label>
+        <InputText class="form-control" @bind-Value="form.DropoffLocation" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Pickup Date & Time</label>
+        <InputText class="form-control" type="datetime-local" @bind-Value="pickupLocal" />
+        <div class="form-text">Leave as default if you want ASAP.</div>
+    </div>
+
+    <button class="btn btn-dark" type="submit">Confirm Booking</button>
+    <button class="btn btn-outline-dark ms-2" type="button" @onclick="GoMyBookings">View My Bookings</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="mt-3 alert alert-info">@msg</div>
+}
+
+@code {
+    private BookingForm form = new();
+    private string pickupLocal = DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
+    private string? msg;
+
+    private async Task SubmitBooking()
+    {
+        msg = null;
+
+        var passengerId = await GetOrCreatePassengerId();
+        if (passengerId == null)
+        {
+            msg = "Unable to identify passenger. Please login again.";
+            return;
+        }
+
+        DateTime pickupDateTime = DateTime.Now;
+        if (!string.IsNullOrWhiteSpace(pickupLocal))
+        {
+            DateTime.TryParse(pickupLocal, out pickupDateTime);
+        }
+
+        decimal fare = FareCalculator.CalculateFare(form.PickupLocation, form.DropoffLocation, pickupDateTime);
+
+        var booking = new Booking
+        {
+            PassengerId = passengerId.Value,
+            PickupLocation = form.PickupLocation.Trim(),
+            DropoffLocation = form.DropoffLocation.Trim(),
+            PickupDateTime = pickupDateTime,
+            Status = "Pending",
+            Fare = fare
+        };
+
+
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        nav.NavigateTo("/passenger/mybookings", true);
+    }
+
+    private void GoMyBookings()
+    {
+        nav.NavigateTo("/passenger/mybookings");
+    }
+
+    private async Task<int?> GetOrCreatePassengerId()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        var user = await userManager.GetUserAsync(principal);
+        if (user == null) return null;
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger != null) return passenger.PassengerId;
+
+        // try to pull name/phone from PassengerProfile if exists
+        var profile = db.PassengerProfiles.FirstOrDefault(x => x.UserId == user.Id);
+
+        passenger = new Passenger
+        {
+            UserId = user.Id,
+            Name = profile?.FullName ?? (user.Email ?? "Passenger"),
+            Phone = profile?.ContactNumber ?? ""
+        };
+
+        db.Passengers.Add(passenger);
+        await db.SaveChangesAsync();
+
+        return passenger.PassengerId;
+    }
+
+    private class BookingForm
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(120)]
+        public string PickupLocation { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(120)]
+        public string DropoffLocation { get; set; } = "";
+    }
+}

@@ -1,0 +1,206 @@
+﻿@page "/passenger/payment"
+@page "/passenger/payment/{PreselectId:int}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Payment</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading outstanding payments...</p>
+}
+else if (items.Count == 0)
+{
+    <p>No outstanding payments.</p>
+    <button class="btn btn-outline-dark" @onclick="Back">Back to My Bookings</button>
+}
+else
+{
+    <p>Select one or more items to pay.</p>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th style="width:60px;">Pay</th>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Status</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var it in items)
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox"
+                               checked="@it.IsSelected"
+                               @onchange="(e) => Toggle(it, e)" />
+                    </td>
+                    <td>@row</td>
+                    <td>@it.Booking.PickupLocation</td>
+                    <td>@it.Booking.DropoffLocation</td>
+                    <td>@it.Booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@it.Booking.Status</td>
+                    <td>@it.Booking.Fare.ToString("0.00")</td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex align-items-center gap-3">
+        <div class="fw-bold">
+            Total Selected: @TotalSelected().ToString("0.00")
+        </div>
+
+        <button class="btn btn-dark" @onclick="PaySelected" disabled="@(!HasAnySelected())">
+            Pay Selected (Mock)
+        </button>
+
+        <button class="btn btn-outline-dark" @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    <div class="form-text mt-2">
+        This is a mock payment (no real gateway). Paying will mark selected items as paid.
+    </div>
+}
+
+@code {
+    [Parameter] public int? PreselectId { get; set; }
+
+    private bool isLoading = true;
+    private string? msg;
+
+    private List<PayItem> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOutstanding();
+    }
+
+    private async Task LoadOutstanding()
+    {
+        isLoading = true;
+        msg = null;
+        items.Clear();
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to identify passenger. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
+        if (passenger == null)
+        {
+            msg = "Passenger record not found.";
+            isLoading = false;
+            return;
+        }
+
+        // Outstanding payments:
+        // 1) Completed rides that are not paid
+        // 2) Cancelled accepted penalty bookings (Fare == 2) that are not paid
+        var outstanding = db.Bookings
+            .Where(b => b.PassengerId == passenger.PassengerId &&
+                   !b.IsPaid &&
+                   (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToList();
+
+        foreach (var b in outstanding)
+        {
+            items.Add(new PayItem
+            {
+                Booking = b,
+                IsSelected = (PreselectId.HasValue && b.BookingId == PreselectId.Value)
+            });
+        }
+
+        isLoading = false;
+    }
+
+    private void Toggle(PayItem it, ChangeEventArgs e)
+    {
+        if (e.Value is bool b)
+            it.IsSelected = b;
+        else
+            it.IsSelected = !it.IsSelected;
+    }
+
+    private bool HasAnySelected()
+    {
+        return items.Any(x => x.IsSelected);
+    }
+
+    private decimal TotalSelected()
+    {
+        return items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
+    }
+
+    private async Task PaySelected()
+    {
+        msg = null;
+
+        var selected = items.Where(x => x.IsSelected).Select(x => x.Booking.BookingId).ToList();
+        if (selected.Count == 0)
+        {
+            msg = "Please select at least one item.";
+            return;
+        }
+
+        // update DB
+        var toPay = db.Bookings.Where(b => selected.Contains(b.BookingId)).ToList();
+        foreach (var b in toPay)
+        {
+            b.IsPaid = true;
+            b.PaidAt = DateTime.Now;
+        }
+
+        await db.SaveChangesAsync();
+
+        msg = $"Payment successful (mock). {toPay.Count} item(s) marked as paid.";
+
+        // reload list (so paid items disappear)
+        await LoadOutstanding();
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/passenger/mybookings");
+    }
+
+    private class PayItem
+    {
+        public Booking Booking { get; set; } = new Booking();
+        public bool IsSelected { get; set; }
+    }
+}

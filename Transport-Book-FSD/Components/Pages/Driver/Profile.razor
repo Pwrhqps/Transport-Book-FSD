@@ -1,0 +1,138 @@
+﻿@page "/driver/profile"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>My Driver Profile</h3>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <EditForm Model="profile" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Full Name</label>
+                    <InputText class="form-control" @bind-Value="profile.FullName" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Contact Number</label>
+                    <InputText class="form-control" @bind-Value="profile.ContactNumber" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Gender</label>
+                    <InputSelect class="form-select" @bind-Value="profile.Gender">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Date of Birth</label>
+                    <InputDate class="form-control" @bind-Value="profile.DateOfBirth" />
+                </div>
+
+                <hr />
+
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Type</label>
+                    <InputText class="form-control" @bind-Value="profile.VehicleType" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Model</label>
+                    <InputText class="form-control" @bind-Value="profile.VehicleModel" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Plate</label>
+                    <InputText class="form-control" @bind-Value="profile.VehiclePlate" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">License Number</label>
+                    <InputText class="form-control" @bind-Value="profile.LicenseNumber" />
+                </div>
+
+                <button class="btn btn-dark" type="submit">Save</button>
+                <button class="btn btn-outline-dark ms-2" type="button" @onclick="Back">Back</button>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header fw-bold">Read-only</div>
+                    <div class="card-body">
+                        <div class="mb-2"><b>Rating:</b> @profile.Rating.ToString("0.0")</div>
+                        <div class="mb-2"><b>Total Completed Trips:</b> @profile.TotalCompletedTrips</div>
+                        <div class="mb-2"><b>Total Earnings:</b> @profile.TotalEarnings.ToString("0.00")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private DriverProfile profile = new();
+    private bool isLoading = true;
+    private ApplicationUser? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        user = await userManager.GetUserAsync(authState.User);
+
+        if (user != null)
+        {
+            var existing = db.DriverProfiles.FirstOrDefault(p => p.UserId == user.Id);
+            if (existing != null)
+            {
+                profile = existing;
+            }
+            else
+            {
+                profile = new DriverProfile
+                {
+                    UserId = user.Id,
+                    FullName = user.Email ?? "Driver",
+                    Gender = "Male"
+                };
+                db.DriverProfiles.Add(profile);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Save()
+    {
+        // profile is already tracked if loaded from db
+        await db.SaveChangesAsync();
+        nav.NavigateTo("/driver/home", true);
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/driver/home");
+    }
+}

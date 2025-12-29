@@ -1,0 +1,125 @@
+﻿@page "/driver/myjobs"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>My Jobs</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading your jobs...</p>
+}
+else if (jobs.Count == 0)
+{
+    <p>You have no accepted jobs.</p>
+    <button class="btn btn-dark" @onclick="GoAvailable">Go to Available Jobs</button>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Status</th>
+                <th>Fare</th>
+                <th>Accepted At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var j in jobs)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@j.PickupLocation</td>
+                    <td>@j.DropoffLocation</td>
+                    <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@j.Status</td>
+                    <td>@j.Fare.ToString("0.00")</td>
+                    <td>@(j.AcceptedAt.HasValue? j.AcceptedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(j.BookingId)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+
+    <button class="btn btn-outline-dark" @onclick="GoAvailable">View Available Jobs</button>
+}
+
+@code {
+    private bool isLoading = true;
+    private List<Booking> jobs = new();
+    private string? msg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+    private void GoAvailable()
+    {
+        nav.NavigateTo("/driver/jobs");
+    }
+
+    private async Task LoadJobs()
+    {
+        isLoading = true;
+        msg = null;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            isLoading = false;
+            return;
+        }
+
+        jobs = db.Bookings
+            .Where(b => b.DriverId == driver.DriverProfileId && (b.Status == "Accepted" || b.Status == "Completed"))
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToList();
+
+        isLoading = false;
+    }
+
+    private void ViewJob(int bookingId)
+    {
+        nav.NavigateTo($"/driver/job/{bookingId}");
+    }
+}

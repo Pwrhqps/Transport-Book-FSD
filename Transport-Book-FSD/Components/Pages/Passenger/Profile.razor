@@ -1,0 +1,168 @@
+﻿@page "/passenger/profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+
+<h3>My Profile</h3>
+<p>Update your personal information.</p>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <EditForm Model="@profile" OnValidSubmit="@SaveProfile">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Full Name</label>
+            <InputText class="form-control" @bind-Value="profile.FullName" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Contact Number</label>
+            <InputText class="form-control" @bind-Value="profile.ContactNumber" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input class="form-control" value="@email" disabled />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Gender</label>
+            <InputSelect class="form-select" @bind-Value="profile.Gender">
+                <option value="">-- Select --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Date of Birth</label>
+            <InputDate class="form-control" @bind-Value="profile.DateOfBirth" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Residential Address</label>
+            <InputText class="form-control" @bind-Value="profile.ResidentialAddress" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Emergency Contact</label>
+            <InputText class="form-control" @bind-Value="profile.EmergencyContact" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Total Completed Trips</label>
+            <input class="form-control" value="@profile.TotalCompletedTrips" disabled />
+            <div class="form-text">This increases automatically when a ride is completed.</div>
+            <p><b>Cancellation Penalty:</b> @profile.CancellationPenaltyBalance.ToString("0.00")</p>
+        </div>
+
+        <button type="submit" class="btn btn-dark">Update</button>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <span class="ms-3">@message</span>
+        }
+    </EditForm>
+}
+
+@code {
+    private PassengerProfile profile = new PassengerProfile();
+    private bool isLoading = true;
+    private string message = "";
+    private string email = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        var user = await userManager.GetUserAsync(principal);
+        if (user == null)
+        {
+            isLoading = false;
+            message = "User not found.";
+            return;
+        }
+
+        email = principal.FindFirstValue(ClaimTypes.Email) ?? user.Email ?? "";
+
+        var existing = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
+
+        if (existing == null)
+        {
+            profile = new PassengerProfile
+            {
+                UserId = user.Id,
+                FullName = "",
+                ContactNumber = "",
+                Gender = "",
+                DateOfBirth = new DateTime(2000, 1, 1),
+                ResidentialAddress = "",
+                EmergencyContact = "",
+                TotalCompletedTrips = 0,
+                ProfileImagePath = ""
+            };
+
+            db.PassengerProfiles.Add(profile);
+            await db.SaveChangesAsync();
+        }
+        else
+        {
+            profile = existing;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task SaveProfile()
+    {
+        message = "";
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        var user = await userManager.GetUserAsync(principal);
+        if (user == null)
+        {
+            message = "User not found.";
+            return;
+        }
+
+        var existing = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
+        if (existing == null)
+        {
+            message = "Profile not found.";
+            return;
+        }
+
+        // Update only editable fields
+        existing.FullName = profile.FullName;
+        existing.ContactNumber = profile.ContactNumber;
+        existing.Gender = profile.Gender;
+        existing.DateOfBirth = profile.DateOfBirth;
+        existing.ResidentialAddress = profile.ResidentialAddress;
+        existing.EmergencyContact = profile.EmergencyContact;
+        // TotalCompletedTrips stays unchanged
+
+        await db.SaveChangesAsync();
+        profile = existing;
+
+        message = "Profile updated.";
+    }
+}

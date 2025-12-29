@@ -1,0 +1,103 @@
+﻿@page "/driver/jobs"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+
+<h3>Available Jobs</h3>
+
+@if (isLoading)
+{
+    <p>Loading jobs...</p>
+}
+else if (jobs.Count == 0)
+{
+    <p>No available jobs at the moment.</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Fare</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var j in jobs)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@j.PickupLocation</td>
+                    <td>@j.DropoffLocation</td>
+                    <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@j.Fare.ToString("0.00")</td>
+                    <td>
+                        <button class="btn btn-sm btn-dark"
+                                @onclick="() => AcceptJob(j.BookingId)">
+                            Accept
+                        </button>
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Booking> jobs = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        isLoading = true;
+
+        jobs = db.Bookings
+            .Where(b => b.Status == "Pending")
+            .OrderBy(b => b.PickupDateTime)
+            .ToList();
+
+        isLoading = false;
+    }
+
+    private async Task AcceptJob(int bookingId)
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+        if (user == null) return;
+
+        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null) return;
+
+        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId);
+        if (booking == null || booking.Status != "Pending") return;
+
+        booking.Status = "Accepted";
+        booking.DriverId = driver.DriverProfileId;
+        booking.AcceptedAt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+
+        await LoadJobs(); // refresh list
+    }
+}
