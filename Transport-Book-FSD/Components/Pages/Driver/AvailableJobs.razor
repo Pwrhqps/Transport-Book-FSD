@@ -30,7 +30,6 @@ else
                 <th>Pickup</th>
                 <th>Dropoff</th>
                 <th>Pickup Time</th>
-                <th>Fare</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -45,7 +44,6 @@ else
                     <td>@j.PickupLocation</td>
                     <td>@j.DropoffLocation</td>
                     <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
-                    <td>@j.Fare.ToString("0.00")</td>
                     <td>
                         <button class="btn btn-sm btn-dark"
                                 @onclick="() => AcceptJob(j.BookingId)">

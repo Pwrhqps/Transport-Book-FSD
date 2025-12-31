@@ -1,0 +1,169 @@
+﻿@page "/driver/feedbacks"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Feedback</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading feedback...</p>
+}
+else if (items.Count == 0)
+{
+    <p>No feedback received yet.</p>
+}
+else
+{
+    <div class="mb-3">
+        <b>Average Rating:</b> @avgRating.ToString("0.0") @GetStars((int)Math.Round(avgRating))
+        <span class="text-muted">(@items.Count feedback)</span>
+    </div>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Pickup Time</th>
+                <th>Passenger</th>
+                <th>Rating</th>
+                <th>Comment</th>
+                <th>Submitted At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var x in items)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@x.Pickup</td>
+                    <td>@x.Dropoff</td>
+                    <td>@x.PickupTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@(string.IsNullOrEmpty(x.PassengerName) ? "-" : x.PassengerName)</td>
+                    <td>@x.Rating @GetStars(x.Rating)</td>
+                    <td>@(string.IsNullOrEmpty(x.Comment) ? "-" : x.Comment)</td>
+                    <td>@x.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(x.BookingId)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? msg;
+
+    private List<FeedbackRow> items = new();
+    private double avgRating = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+        msg = null;
+        items = new();
+        avgRating = 0;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            isLoading = false;
+            return;
+        }
+
+        // show feedback linked to the driver's bookings (works even if Feedback.DriverId is null)
+        items = (
+            from f in db.Feedbacks
+            join b in db.Bookings on f.BookingId equals b.BookingId
+            join p in db.Passengers on b.PassengerId equals p.PassengerId into pp
+            from p in pp.DefaultIfEmpty()
+            where b.DriverId == driver.DriverProfileId
+            orderby f.CreatedAt descending, f.FeedbackId descending
+            select new FeedbackRow
+            {
+                FeedbackId = f.FeedbackId,
+                BookingId = b.BookingId,
+                Pickup = b.PickupLocation,
+                Dropoff = b.DropoffLocation,
+                PickupTime = b.PickupDateTime,
+                PassengerName = p != null ? p.Name : null,
+                Rating = f.Rating,
+                Comment = f.Comment,
+                CreatedAt = f.CreatedAt
+            }
+        ).ToList();
+
+        if (items.Count > 0)
+        {
+            avgRating = items.Average(x => x.Rating);
+        }
+
+        isLoading = false;
+    }
+
+    private void ViewJob(int bookingId)
+    {
+        nav.NavigateTo($"/driver/job/{bookingId}");
+    }
+
+    private string GetStars(int rating)
+    {
+        if (rating < 1) return "";
+        if (rating > 5) rating = 5;
+        return new string('⭐', rating);
+    }
+
+    private class FeedbackRow
+    {
+        public int FeedbackId { get; set; }
+        public int BookingId { get; set; }
+        public string Pickup { get; set; } = string.Empty;
+        public string Dropoff { get; set; } = string.Empty;
+        public DateTime PickupTime { get; set; }
+        public string? PassengerName { get; set; }
+        public int Rating { get; set; }
+        public string? Comment { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+}

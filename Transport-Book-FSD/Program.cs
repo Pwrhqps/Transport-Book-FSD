@@ -116,7 +116,22 @@ app.MapRazorComponents<App>()
 
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // Seed 1 default staff account if none exists
+    if (!db.Staffs.Any())
+    {
+        db.Staffs.Add(new Staff
+        {
+            Email = "staff1@gmail.com",
+            Password = "password123"
+        });
+
+        await db.SaveChangesAsync();
+    }
+
     await DbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 app.Run();
+

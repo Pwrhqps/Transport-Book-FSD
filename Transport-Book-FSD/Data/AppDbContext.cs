@@ -10,12 +10,15 @@ namespace Transport_Book_FSD.Data
         {
         }
 
-        // Passenger-side entities (we’ll create these classes next)
+        // Passenger-side entities 
         public DbSet<Passenger> Passengers { get; set; }
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<Feedback> Feedbacks { get; set; }
         public DbSet<PassengerProfile> PassengerProfiles { get; set; }
         public DbSet<DriverProfile> DriverProfiles { get; set; }
+
+        // Staff
+        public DbSet<Staff> Staffs { get; set; }
     }
 }

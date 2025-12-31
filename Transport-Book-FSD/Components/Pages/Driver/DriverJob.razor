@@ -36,6 +36,12 @@ else
             Booking #@job.BookingId
         </div>
         <div class="card-body">
+            <div class="mb-3">
+                <div class="fw-bold mb-1">Customer Details</div>
+                <div class="mb-1"><b>Name:</b> @(customerProfile != null ? customerProfile.FullName : (customer != null ? customer.Name : "-"))</div>
+                <div><b>Contact:</b> @(customerProfile != null ? customerProfile.ContactNumber : (customer != null ? customer.Phone : "-"))</div>
+            </div>
+
             <div class="mb-2"><b>Pickup:</b> @job.PickupLocation</div>
             <div class="mb-2"><b>Dropoff:</b> @job.DropoffLocation</div>
             <div class="mb-2"><b>Pickup Time:</b> @job.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
@@ -70,6 +76,9 @@ else
     private Booking? job;
     private DriverProfile? driver;
 
+    private Passenger? customer;
+    private PassengerProfile? customerProfile;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadJob();
@@ -79,6 +88,8 @@ else
     {
         isLoading = true;
         msg = null;
+        customer = null;
+        customerProfile = null;
 
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
@@ -104,6 +115,14 @@ else
         if (job == null || job.DriverId != driver.DriverProfileId)
         {
             job = null;
+        }
+        else
+        {
+            customer = db.Passengers.FirstOrDefault(p => p.PassengerId == job.PassengerId);
+            if (customer != null)
+            {
+                customerProfile = db.PassengerProfiles.FirstOrDefault(pp => pp.UserId == customer.UserId);
+            }
         }
 
         isLoading = false;

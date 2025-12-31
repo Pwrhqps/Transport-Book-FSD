@@ -1,0 +1,76 @@
+﻿@page "/staff/login"
+@page "/auth/staff-login"
+@rendermode InteractiveServer
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject AppDbContext db
+@inject NavigationManager nav
+
+<h3>Staff Login</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-danger">@msg</div>
+}
+
+<div class="card" style="max-width: 420px;">
+    <div class="card-body">
+        <EditForm Model="form" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">Staff Email Address</label>
+                <InputText class="form-control" @bind-Value="form.Email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Staff ID</label>
+                <InputNumber class="form-control" @bind-Value="form.StaffId" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText type="password" class="form-control" @bind-Value="form.Password" />
+            </div>
+
+            <button class="btn btn-dark" type="submit">
+                Login
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private string? msg;
+
+    private StaffLoginForm form = new();
+
+    private void HandleLogin()
+    {
+        msg = null;
+
+        var staff = db.Staffs.FirstOrDefault(s =>
+            s.Email == form.Email &&
+            s.StaffId == form.StaffId &&
+            s.Password == form.Password
+        );
+
+        if (staff == null)
+        {
+            msg = "Invalid staff credentials.";
+            return;
+        }
+
+        // TEMP: simple sessionless redirect
+        nav.NavigateTo("/staff/home");
+    }
+
+    private class StaffLoginForm
+    {
+        public string Email { get; set; } = string.Empty;
+        public int StaffId { get; set; }
+        public string Password { get; set; } = string.Empty;
+    }
+}
