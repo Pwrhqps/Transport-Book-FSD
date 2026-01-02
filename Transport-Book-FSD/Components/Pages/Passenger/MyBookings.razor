@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
 @attribute [Authorize(Roles = "Passenger")]
@@ -11,6 +12,7 @@
 @inject UserManager<ApplicationUser> userManager
 @inject AuthenticationStateProvider authStateProvider
 @inject NavigationManager nav
+@inject IJSRuntime JS
 
 <h3>My Bookings</h3>
 
@@ -60,15 +62,8 @@ else
                         @if (b.Status == "Pending" || b.Status == "Accepted")
                         {
                             <button class="btn btn-sm btn-outline-danger"
-                                    @onclick="() => CancelBooking(b.BookingId)">
+                                    @onclick="() => ConfirmCancel(b.BookingId)">
                                 Cancel
-                            </button>
-                        }
-                        else if (b.Status == "Cancelled" && b.Fare == 0.00m)
-                        {
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    @onclick="() => DeleteBooking(b.BookingId)">
-                                Delete
                             </button>
                         }
                         else if (b.Status == "Cancelled" && b.Fare == 2.00m && !b.IsPaid)
@@ -76,6 +71,13 @@ else
                             <button class="btn btn-sm btn-outline-primary"
                                     @onclick="() => GoPayment(b.BookingId)">
                                 To Payment
+                            </button>
+                        }
+                        else if (b.Status == "Cancelled" && !b.IsPaid)
+                        {
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => ConfirmDelete(b.BookingId)">
+                                Delete
                             </button>
                         }
                         else if (b.Status == "Completed" && !b.IsPaid)
@@ -118,7 +120,6 @@ else
 
     private void GoPayment(int bookingId)
     {
-        // Payment page can be done later
         nav.NavigateTo($"/passenger/payment/{bookingId}");
     }
 
@@ -145,8 +146,6 @@ else
             return;
         }
 
-        // ✅ My Bookings = NOT "Paid history"
-        // Paid history = (IsPaid == true) AND (Completed OR Cancelled penalty)
         bookings = db.Bookings
             .Where(b => b.PassengerId == passenger.PassengerId &&
                    !(b.IsPaid && (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m))))
@@ -157,6 +156,21 @@ else
         isLoading = false;
     }
 
+    private async Task ConfirmCancel(int bookingId)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
+        if (!ok) return;
+
+        await CancelBooking(bookingId);
+    }
+
+    private async Task ConfirmDelete(int bookingId)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", "Delete this booking? This cannot be undone.");
+        if (!ok) return;
+
+        await DeleteBooking(bookingId);
+    }
 
     private async Task CancelBooking(int bookingId)
     {
@@ -183,17 +197,17 @@ else
             return;
         }
 
-        // cannot cancel these
         if (booking.Status == "Completed" || booking.Status == "Cancelled")
         {
             msg = "This booking cannot be cancelled.";
             return;
         }
 
-        // Pending cancel -> disappear from list (because we filter Status == Cancelled)
         if (booking.Status == "Pending")
         {
             booking.Status = "Cancelled";
+            booking.Fare = 0.00m;
+
             await db.SaveChangesAsync();
 
             msg = $"Booking cancelled.";
@@ -201,7 +215,6 @@ else
             return;
         }
 
-        // Accepted cancel -> becomes Cancelled with $2 penalty fare + show To Payment
         if (booking.Status == "Accepted")
         {
             booking.Status = "Cancelled";
@@ -242,10 +255,15 @@ else
             return;
         }
 
-        // Only allow delete for successful cancellations (no penalty)
-        if (booking.Status != "Cancelled" || booking.Fare != 0.00m)
+        if (booking.Status != "Cancelled")
         {
-            msg = "Only cancelled bookings with no penalty can be deleted.";
+            msg = "Only cancelled bookings can be deleted.";
+            return;
+        }
+
+        if (booking.Fare == 2.00m && !booking.IsPaid)
+        {
+            msg = "Penalty bookings must be paid before deletion.";
             return;
         }
 

@@ -42,8 +42,6 @@ else
                 <th>Dropoff</th>
                 <th>Pickup Time</th>
                 <th>Passenger</th>
-                <th>Rating</th>
-                <th>Comment</th>
                 <th>Submitted At</th>
                 <th>Action</th>
             </tr>
@@ -60,8 +58,6 @@ else
                     <td>@x.Dropoff</td>
                     <td>@x.PickupTime.ToString("dd/MM/yyyy HH:mm")</td>
                     <td>@(string.IsNullOrEmpty(x.PassengerName) ? "-" : x.PassengerName)</td>
-                    <td>@x.Rating @GetStars(x.Rating)</td>
-                    <td>@(string.IsNullOrEmpty(x.Comment) ? "-" : x.Comment)</td>
                     <td>@x.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
                     <td>
                         <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(x.BookingId)">
@@ -144,7 +140,8 @@ else
 
     private void ViewJob(int bookingId)
     {
-        nav.NavigateTo($"/driver/job/{bookingId}");
+        nav.NavigateTo($"/driver/feedback/{bookingId}");
+
     }
 
     private string GetStars(int rating)

@@ -1,31 +1,49 @@
 ﻿@page "/auth/login"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.WebUtilities
 @inject NavigationManager Nav
 
 <h3>Login</h3>
 
-<div class="row">
-    <div class="col-md-6">
-
-        @if (Nav.ToAbsoluteUri(Nav.Uri).Query.Contains("error=1"))
-        {
-            <div class="text-danger mb-3">Invalid login attempt.</div>
-        }
-
-        <form method="post" action="/auth/login-post">
-            <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input class="form-control" name="Email" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Password</label>
-                <input class="form-control" type="password" name="Password" />
-            </div>
-
-            <button class="btn btn-dark" type="submit">Login</button>
-            <a class="btn btn-outline-dark ms-2" href="/auth/register">Register</a>
-        </form>
-
+@if (error == "1")
+{
+    <div class="alert alert-danger">
+        Invalid email or password.
     </div>
-</div>
+}
+
+<form method="post" action="/auth/login-post">
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input class="form-control" name="Email" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input class="form-control" type="password" name="Password" />
+    </div>
+
+    <button type="submit" class="btn btn-dark me-2">Login</button>
+
+    <button type="button" class="btn btn-outline-dark" @onclick="GoRegister">
+        Register
+    </button>
+</form>
+
+@code {
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("error", out var v))
+            error = v.ToString();
+    }
+
+    private void GoRegister()
+    {
+        Nav.NavigateTo("/auth/register");
+    }
+}

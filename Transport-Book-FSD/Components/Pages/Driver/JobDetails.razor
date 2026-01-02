@@ -1,4 +1,4 @@
-﻿@page "/driver/feedback/{BookingId:int}"
+﻿@page "/driver/job/{BookingId:int}"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
@@ -11,19 +11,9 @@
 @inject UserManager<ApplicationUser> userManager
 @inject AuthenticationStateProvider authStateProvider
 @inject NavigationManager nav
+@inject IJSRuntime JS
 
-<style>
-    .star {
-        font-size: 24px;
-        color: #f5c518;
-        margin-right: 2px;
-    }
-    .star.empty {
-        color: #ccc;
-    }
-</style>
-
-<h3>Feedback</h3>
+<h3>Job Details</h3>
 
 @if (!string.IsNullOrEmpty(msg))
 {
@@ -34,16 +24,16 @@
 {
     <p>Loading...</p>
 }
-else if (booking == null)
+else if (job == null)
 {
-    <p>Booking not found.</p>
+    <p>Record not found.</p>
     <button class="btn btn-outline-dark" @onclick="Back">Back</button>
 }
 else
 {
     <div class="card">
         <div class="card-header fw-bold">
-            Booking #@booking.BookingId
+            Booking #@job.BookingId
         </div>
 
         <div class="card-body">
@@ -56,39 +46,28 @@ else
 
             <hr />
 
-            <div class="mb-2"><b>Pickup:</b> @booking.PickupLocation</div>
-            <div class="mb-2"><b>Dropoff:</b> @booking.DropoffLocation</div>
-            <div class="mb-2"><b>Pickup Time:</b> @booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
-            <div class="mb-2"><b>Status:</b> @booking.Status</div>
+            <div class="mb-2"><b>Pickup:</b> @job.PickupLocation</div>
+            <div class="mb-2"><b>Dropoff:</b> @job.DropoffLocation</div>
+            <div class="mb-2"><b>Pickup Time:</b> @job.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
+            <div class="mb-2"><b>Status:</b> @job.Status</div>
+            <div class="mb-2"><b>Fare:</b> @job.Fare.ToString("0.00")</div>
+            <div class="mb-2"><b>Accepted At:</b> @(job.AcceptedAt.HasValue? job.AcceptedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</div>
 
             <hr />
 
-            @if (feedback == null)
+            @if (job.Status == "Accepted")
             {
-                <p>No feedback submitted for this booking.</p>
-            }
-            else
-            {
-                <div class="mb-2">
-                    <b>Rating:</b>
-                    @for (int i = 1; i <= 5; i++)
-                    {
-                        if (i <= feedback.Rating)
-                        {
-                            <span class="star">★</span>
-                        }
-                        else
-                        {
-                            <span class="star empty">★</span>
-                        }
-                    }
-                </div>
-
-                <div class="mb-2"><b>Comment:</b> @feedback.Comment</div>
-                <div class="mb-2"><b>Submitted At:</b> @feedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                <button class="btn btn-success me-2" @onclick="ConfirmFinishJob">
+                    Finish Job
+                </button>
             }
 
-            <hr />
+            @if (feedback != null)
+            {
+                <button class="btn btn-outline-primary me-2" @onclick="ViewFeedback">
+                    View Feedback
+                </button>
+            }
 
             <button class="btn btn-outline-dark" @onclick="Back">Back</button>
         </div>
@@ -101,7 +80,7 @@ else
     private bool isLoading = true;
     private string? msg;
 
-    private Booking? booking;
+    private Booking? job;
     private Feedback? feedback;
 
     private string customerName = "-";
@@ -135,28 +114,71 @@ else
             return;
         }
 
-        booking = db.Bookings.FirstOrDefault(b =>
+        job = db.Bookings.FirstOrDefault(b =>
             b.BookingId == BookingId &&
             b.DriverId == driver.DriverProfileId
         );
 
-        if (booking != null)
+        if (job != null)
         {
-            var passenger = db.Passengers.FirstOrDefault(p => p.PassengerId == booking.PassengerId);
+            var passenger = db.Passengers.FirstOrDefault(p => p.PassengerId == job.PassengerId);
             if (passenger != null)
             {
                 customerName = passenger.Name;
                 customerPhone = passenger.Phone;
             }
 
-            feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
+            feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == job.BookingId);
         }
 
         isLoading = false;
     }
 
+    // ✅ CONFIRMATION POPUP
+    private async Task ConfirmFinishJob()
+    {
+        if (job == null) return;
+
+        var ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Are you sure you want to finish this job?"
+        );
+
+        if (!ok) return;
+
+        await FinishJob();
+    }
+
+    private async Task FinishJob()
+    {
+        msg = null;
+
+        if (job == null)
+        {
+            msg = "Job not found.";
+            return;
+        }
+
+        if (job.Status != "Accepted")
+        {
+            msg = "Only accepted jobs can be completed.";
+            return;
+        }
+
+        job.Status = "Completed";
+        await db.SaveChangesAsync();
+
+        msg = "Job marked as completed.";
+        await Load();
+    }
+
+    private void ViewFeedback()
+    {
+        nav.NavigateTo($"/driver/feedback/{BookingId}");
+    }
+
     private void Back()
     {
-        nav.NavigateTo("/driver/feedbacks");
+        nav.NavigateTo("/driver/myjobs");
     }
 }

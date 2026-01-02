@@ -1,0 +1,8 @@
+﻿@page "/staff/home"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Staff2FA")]
+
+
+<h3>Staff Home</h3>
+<p>Welcome, Staff.</p>

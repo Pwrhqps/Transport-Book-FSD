@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
 @attribute [Authorize(Roles = "Driver")]
@@ -10,6 +11,7 @@
 @inject AppDbContext db
 @inject UserManager<ApplicationUser> userManager
 @inject AuthenticationStateProvider authStateProvider
+@inject IJSRuntime JS
 
 <h3>Available Jobs</h3>
 
@@ -46,7 +48,7 @@ else
                     <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
                     <td>
                         <button class="btn btn-sm btn-dark"
-                                @onclick="() => AcceptJob(j.BookingId)">
+                                @onclick="() => ConfirmAccept(j.BookingId)">
                             Accept
                         </button>
                     </td>
@@ -76,6 +78,14 @@ else
             .ToList();
 
         isLoading = false;
+    }
+
+    private async Task ConfirmAccept(int bookingId)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to accept this job?");
+        if (!ok) return;
+
+        await AcceptJob(bookingId);
     }
 
     private async Task AcceptJob(int bookingId)

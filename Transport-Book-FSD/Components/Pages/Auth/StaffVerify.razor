@@ -1,0 +1,38 @@
+﻿@page "/auth/staff-verify"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Caching.Memory
+@using Microsoft.AspNetCore.Identity
+@inject NavigationManager Nav
+
+<h3>Staff Verification</h3>
+
+@if (error == "1")
+{
+    <div class="alert alert-danger">Invalid or expired OTP. Please try again.</div>
+}
+
+<form method="post" action="/auth/staff-verify-post">
+    <div class="mb-3">
+        <label class="form-label">Enter OTP</label>
+        <input class="form-control" name="Code" />
+        <div class="form-text">OTP expires in 3 minutes.</div>
+    </div>
+
+    <button type="submit" class="btn btn-dark">Verify</button>
+</form>
+
+@code {
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("error", out var v))
+            error = v.ToString();
+
+        // Show OTP only in Development mode
+        
+    }
+}

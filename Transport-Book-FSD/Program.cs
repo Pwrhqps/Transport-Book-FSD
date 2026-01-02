@@ -1,12 +1,15 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using System.Security.Claims;
 using Transport_Book_FSD.Components;
 using Transport_Book_FSD.Data;
 using Transport_Book_FSD.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddMemoryCache();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -28,7 +31,13 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 builder.Services.AddHttpContextAccessor();
 
 // ✅ Authorization + Blazor auth state
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Staff2FA", policy =>
+        policy.RequireRole("Staff")
+              .RequireClaim("Staff2FA", "true"));
+});
+
 builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
@@ -50,7 +59,12 @@ app.UseAuthorization();
 app.MapPost("/auth/login-post", async (
     HttpContext http,
     SignInManager<ApplicationUser> signInManager,
-    UserManager<ApplicationUser> userManager) =>
+    UserManager<ApplicationUser> userManager,
+    IMemoryCache cache,
+    ILogger<Program> logger,
+    IWebHostEnvironment env) =>
+
+
 {
     var form = await http.Request.ReadFormAsync();
     var email = form["Email"].ToString();
@@ -66,14 +80,29 @@ app.MapPost("/auth/login-post", async (
     if (user == null)
         return Results.Redirect("/auth/login?error=1");
 
-    if (await userManager.IsInRoleAsync(user, "Passenger"))
-        return Results.Redirect("/passenger/home");
+    if (await userManager.IsInRoleAsync(user, "Staff"))
+    {
+        // generate 6-digit OTP
+        var otp = Random.Shared.Next(0, 1000000).ToString("D6");
+
+        cache.Set($"staff-otp:{user.Id}", otp, TimeSpan.FromMinutes(3));
+        if (env.IsDevelopment())
+        {
+            logger.LogInformation("DEV STAFF OTP for {Email}: {Otp} (expires 3 mins)", email, otp);
+        }
+
+
+        // go to verify step
+        return Results.Redirect("/auth/staff-verify");
+    }
 
     if (await userManager.IsInRoleAsync(user, "Driver"))
         return Results.Redirect("/driver/home");
 
-    if (await userManager.IsInRoleAsync(user, "Staff"))
-        return Results.Redirect("/staff");
+    if (await userManager.IsInRoleAsync(user, "Passenger"))
+        return Results.Redirect("/passenger/home");
+
+
 
     return Results.Redirect("/");
 }).DisableAntiforgery();
@@ -101,7 +130,8 @@ app.MapPost("/auth/staff-login-post", async (
     if (!result.Succeeded)
         return Results.Redirect("/auth/staff-login?error=1");
 
-    return Results.Redirect("/staff");
+    return Results.Redirect("/staff/home");
+
 }).DisableAntiforgery();
 
 // ✅ LOGOUT endpoint (HTTP POST)
@@ -111,27 +141,56 @@ app.MapPost("/auth/logout", async (HttpContext http) =>
     return Results.Redirect("/");
 }).DisableAntiforgery();
 
+app.MapPost("/auth/staff-verify-post", async (
+    HttpContext http,
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager,
+    IMemoryCache cache) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var code = form["Code"].ToString();
+
+    // must be logged in already (from step 1 login)
+    var user = await userManager.GetUserAsync(http.User);
+    if (user == null)
+        return Results.Redirect("/auth/login");
+
+    // must be staff
+    if (!await userManager.IsInRoleAsync(user, "Staff"))
+        return Results.Redirect("/auth/login");
+
+    if (!cache.TryGetValue($"staff-otp:{user.Id}", out string otp))
+        return Results.Redirect("/auth/staff-verify?error=1");
+
+    if (otp != code)
+        return Results.Redirect("/auth/staff-verify?error=1");
+
+    // OTP correct -> remove it
+    cache.Remove($"staff-otp:{user.Id}");
+
+    // re-issue cookie with Staff2FA claim
+    await signInManager.SignOutAsync();
+
+    var claims = new List<Claim>
+    {
+        new Claim("Staff2FA", "true")
+    };
+
+    await signInManager.SignInWithClaimsAsync(user, isPersistent: false, claims);
+
+    return Results.Redirect("/staff/home");
+}).DisableAntiforgery();
+
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    // Seed 1 default staff account if none exists
-    if (!db.Staffs.Any())
-    {
-        db.Staffs.Add(new Staff
-        {
-            Email = "staff1@gmail.com",
-            Password = "password123"
-        });
-
-        await db.SaveChangesAsync();
-    }
-
-    await DbSeeder.SeedAsync(scope.ServiceProvider);
+    var services = scope.ServiceProvider;
+    await DbSeeder.SeedAsync(services);
 }
+
 
 app.Run();
 
