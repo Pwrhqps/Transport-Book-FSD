@@ -1,4 +1,4 @@
-﻿@page "/driver/myjobs"
+﻿@page "/driver/completedjobs"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -12,7 +12,7 @@
 @inject AuthenticationStateProvider authStateProvider
 @inject NavigationManager nav
 
-<h3>My Jobs</h3>
+<h3>Completed Jobs</h3>
 
 @if (!string.IsNullOrEmpty(msg))
 {
@@ -21,14 +21,12 @@
 
 @if (isLoading)
 {
-    <p>Loading your jobs...</p>
+    <p>Loading completed jobs...</p>
 }
 else if (jobs.Count == 0)
 {
-    <p>You have no accepted jobs.</p>
-
-    <button class="btn btn-dark me-2" @onclick="GoAvailable">Go to Available Jobs</button>
-    <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    <p>No completed jobs yet.</p>
+    <button class="btn btn-outline-dark" @onclick="GoMyJobs">Back to My Jobs</button>
 }
 else
 {
@@ -70,8 +68,7 @@ else
         </tbody>
     </table>
 
-    <button class="btn btn-outline-dark me-2" @onclick="GoAvailable">View Available Jobs</button>
-    <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    <button class="btn btn-outline-dark" @onclick="GoMyJobs">Back to My Jobs</button>
 }
 
 @code {
@@ -81,21 +78,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadJobs();
+        await LoadCompletedJobs();
     }
 
-    private void GoAvailable()
+    private void GoMyJobs()
     {
-        nav.NavigateTo("/driver/jobs");
+        nav.NavigateTo("/driver/myjobs");
     }
 
-    // ✅ Step 3: new button action
-    private void GoCompletedJobs()
-    {
-        nav.NavigateTo("/driver/completedjobs");
-    }
-
-    private async Task LoadJobs()
+    private async Task LoadCompletedJobs()
     {
         isLoading = true;
         msg = null;
@@ -118,11 +109,10 @@ else
             return;
         }
 
-        // ✅ Step 2: only show ACTIVE jobs here (Accepted)
         jobs = db.Bookings
-            .Where(b => b.DriverId == driver.DriverProfileId && b.Status == "Accepted")
-            .OrderBy(b => b.PickupDateTime)
-            .ThenBy(b => b.BookingId)
+            .Where(b => b.DriverId == driver.DriverProfileId && b.Status == "Completed")
+            .OrderByDescending(b => b.PickupDateTime)
+            .ThenByDescending(b => b.BookingId)
             .ToList();
 
         isLoading = false;
