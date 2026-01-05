@@ -17,6 +17,20 @@
             <ValidationSummary />
 
             <div class="mb-3">
+                <label class="form-label">Register As</label>
+                <div>
+                    <InputRadioGroup @bind-Value="form.Role" name="Role">
+                        <label class="me-3">
+                            <InputRadio Value="@("Passenger")" /> Passenger
+                        </label>
+                        <label>
+                            <InputRadio Value="@("Driver")" /> Driver
+                        </label>
+                    </InputRadioGroup>
+                </div>
+            </div>
+
+            <div class="mb-3">
                 <label class="form-label">Email</label>
                 <InputText class="form-control" @bind-Value="form.Email" name="Email" />
             </div>
@@ -30,20 +44,21 @@
                 <label class="form-label">Confirm Password</label>
                 <InputText class="form-control" type="password" @bind-Value="form.ConfirmPassword" name="ConfirmPassword" />
             </div>
-
-            <div class="mb-3">
-                <label class="form-label">Register As</label>
-                <div>
-                    <InputRadioGroup @bind-Value="form.Role" name="Role">
-                        <label class="me-3">
-                            <InputRadio Value="@("Passenger")" /> Passenger
-                        </label>
-                        <label>
-                            <InputRadio Value="@("Driver")" /> Driver
-                        </label>
-                    </InputRadioGroup>
+            @if (form.Role == "Driver")
+            {
+                <div class="mb-3">
+                    <label class="form-label">Phone Number</label>
+                    <InputText class="form-control" @bind-Value="form.PhoneNumber" name="PhoneNumber" />
                 </div>
-            </div>
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Type</label>
+                    <InputText class="form-control" @bind-Value="form.VehicleType" name="VehicleType" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Lincense Plate Number</label>
+                    <InputText class="form-control" @bind-Value="form.LicensePlate" name="LicensePlate" />
+                </div>
+            }
 
             <button class="btn btn-dark" type="submit">Register</button>
             <a class="btn btn-outline-dark ms-2" href="/auth/login">Login</a>
@@ -108,5 +123,12 @@
         public string ConfirmPassword { get; set; } = "";
 
         public string Role { get; set; } = "Passenger";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string? PhoneNumber { get; set; }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string? VehicleType { get; set; }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string? LicensePlate { get; set; }
     }
 }
