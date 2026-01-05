@@ -88,7 +88,10 @@
         var user = new ApplicationUser
         {
             UserName = form.Email,
-            Email = form.Email
+            Email = form.Email,
+            PhoneNumber = form.PhoneNumber, 
+            VehicleType = form.VehicleType, 
+            LicensePlate = form.LicensePlate 
         };
 
         var result = await UserManager.CreateAsync(user, form.Password);
@@ -124,11 +127,11 @@
 
         public string Role { get; set; } = "Passenger";
 
-        [System.ComponentModel.DataAnnotations.Required]
+
         public string? PhoneNumber { get; set; }
-        [System.ComponentModel.DataAnnotations.Required]
+
         public string? VehicleType { get; set; }
-        [System.ComponentModel.DataAnnotations.Required]
+
         public string? LicensePlate { get; set; }
     }
 }
