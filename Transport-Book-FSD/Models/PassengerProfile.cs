@@ -24,6 +24,10 @@ namespace Transport_Book_FSD.Models
 
         public int TotalCompletedTrips { get; set; } = 0;
         public decimal CancellationPenaltyBalance { get; set; }
+        public bool IsSuspended { get; set; } = false;
+        public string SuspendedReason { get; set; } = "";
+        public DateTime? SuspendedUntil { get; set; }
+        public DateTime? SuspendedAt { get; set; }
 
         // Optional later
         public string ProfileImagePath { get; set; } = "";

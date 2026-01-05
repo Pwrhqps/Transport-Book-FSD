@@ -126,6 +126,15 @@ else
 
     private async Task Save()
     {
+        // If rejected, let driver resubmit by saving updated details
+        if (profile.VerificationStatus == "Rejected")
+        {
+            profile.VerificationStatus = "Pending";
+            profile.VerificationRemarks = "";
+            profile.VerifiedAt = null;
+            profile.VerifiedByUserId = "";
+        }
+
         // profile is already tracked if loaded from db
         await db.SaveChangesAsync();
         nav.NavigateTo("/driver/home", true);

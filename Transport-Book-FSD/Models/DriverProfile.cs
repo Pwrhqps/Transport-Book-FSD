@@ -39,5 +39,21 @@ namespace Transport_Book_FSD.Models
         public int TotalCompletedTrips { get; set; }
         public decimal TotalEarnings { get; set; }
         public double Rating { get; set; } = 5.0;
+        public bool IsSuspended { get; set; } = false;
+        public string SuspendedReason { get; set; } = "";
+        public DateTime? SuspendedUntil { get; set; }
+        public DateTime? SuspendedAt { get; set; }
+
+        // Verification workflow (Staff approval)
+        [StringLength(20)]
+        public string VerificationStatus { get; set; } = "Pending"; // Pending / Approved / Rejected
+
+        [StringLength(300)]
+        public string VerificationRemarks { get; set; } = "";
+
+        public DateTime? VerifiedAt { get; set; }
+
+        [StringLength(450)]
+        public string VerifiedByUserId { get; set; } = "";
     }
 }

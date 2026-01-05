@@ -25,6 +25,25 @@ else if (profile == null)
 }
 else
 {
+    var status = string.IsNullOrWhiteSpace(profile.VerificationStatus) ? "Pending" : profile.VerificationStatus;
+
+@if (status != "Approved")
+{
+    <div class="alert alert-warning">
+        @if (status == "Rejected")
+        {
+            <div><b>Verification Status:</b> Rejected</div>
+            <div><b>Remarks:</b> @(string.IsNullOrWhiteSpace(profile.VerificationRemarks) ? "No remarks provided." : profile.VerificationRemarks)</div>
+            <div class="mt-2">Update your profile details and press Save to resubmit for verification.</div>
+        }
+        else
+        {
+            <div><b>Verification Status:</b> Pending</div>
+            <div>Please wait for staff approval before accepting jobs.</div>
+        }
+    </div>
+}
+
     <div class="card mb-3">
         <div class="card-header fw-bold">My Profile</div>
         <div class="card-body">

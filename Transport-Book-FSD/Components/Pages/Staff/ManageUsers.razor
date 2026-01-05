@@ -1,0 +1,201 @@
+﻿@page "/staff/manageusers"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Policy = "Staff2FA")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject NavigationManager nav
+
+<h3>Manage Users</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Search (name / email / phone)</label>
+                <input class="form-control" @bind="search" @bind:event="oninput" placeholder="e.g. test@gmail.com" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Role</label>
+                <select class="form-select" @bind="roleFilter" @bind:after="OnRoleChanged">
+                    <option value="All">All</option>
+                    <option value="Passenger">Passenger</option>
+                    <option value="Driver">Driver</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <button type="button" class="btn btn-dark w-100" @onclick="Apply">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <p>Loading users...</p>
+}
+else if (filtered.Count == 0)
+{
+    <p>No users found.</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Phone</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var u in filtered)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@u.DisplayName</td>
+                    <td>@u.Email</td>
+                    <td>@u.Role</td>
+                    <td>@u.Phone</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewUser(u.UserId)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? msg;
+
+    private string search = "";
+    private string roleFilter = "All";
+
+    private List<UserRow> all = new();
+    private List<UserRow> filtered = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+        await Apply();
+    }
+
+    private async Task OnRoleChanged()
+    {
+        await Apply();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        msg = null;
+
+        // Identity users
+        var users = await db.Users
+            .AsNoTracking()
+            .OrderBy(u => u.Email)
+            .ToListAsync();
+
+        // Profiles (for name/phone)
+        var passengerProfiles = await db.PassengerProfiles.AsNoTracking().ToListAsync();
+        var driverProfiles = await db.DriverProfiles.AsNoTracking().ToListAsync();
+
+        all.Clear();
+
+        foreach (var u in users)
+        {
+            // Only manage Passenger & Driver
+            string role = "";
+            if (await userManager.IsInRoleAsync(u, "Passenger")) role = "Passenger";
+            else if (await userManager.IsInRoleAsync(u, "Driver")) role = "Driver";
+            else continue; // skip Staff and others
+
+            string displayName = u.Email ?? "";
+            string phone = "";
+
+            var pp = passengerProfiles.FirstOrDefault(p => p.UserId == u.Id);
+            if (pp != null)
+            {
+                displayName = pp.FullName;
+                phone = pp.ContactNumber;
+            }
+
+            var dp = driverProfiles.FirstOrDefault(d => d.UserId == u.Id);
+            if (dp != null)
+            {
+                displayName = dp.FullName;
+                phone = dp.ContactNumber;
+            }
+
+            all.Add(new UserRow
+            {
+                UserId = u.Id,
+                Email = u.Email ?? "",
+                Role = role,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? (u.Email ?? "") : displayName,
+                Phone = phone
+            });
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Apply()
+    {
+        IEnumerable<UserRow> q = all;
+
+        if (roleFilter != "All")
+            q = q.Where(x => x.Role == roleFilter);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            q = q.Where(x =>
+                (x.DisplayName ?? "").ToLower().Contains(s) ||
+                (x.Email ?? "").ToLower().Contains(s) ||
+                (x.Phone ?? "").ToLower().Contains(s));
+        }
+
+        filtered = q
+            .OrderBy(x => x.Role)
+            .ThenBy(x => x.DisplayName)
+            .ToList();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ViewUser(string userId)
+    {
+        nav.NavigateTo($"/staff/userdetails/{userId}");
+    }
+
+    private class UserRow
+    {
+        public string UserId { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Phone { get; set; } = "";
+    }
+}

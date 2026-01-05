@@ -15,6 +15,11 @@
 
 <h3>Available Jobs</h3>
 
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-danger">@msg</div>
+}
+
 @if (isLoading)
 {
     <p>Loading jobs...</p>
@@ -62,6 +67,7 @@ else
 @code {
     private List<Booking> jobs = new();
     private bool isLoading = true;
+    private string? msg;
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,6 +76,37 @@ else
 
     private async Task LoadJobs()
     {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            jobs = new();
+            isLoading = false;
+            return;
+        }
+
+        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            jobs = new();
+            isLoading = false;
+            return;
+        }
+
+        var status = string.IsNullOrWhiteSpace(driver.VerificationStatus) ? "Pending" : driver.VerificationStatus;
+        if (status != "Approved")
+        {
+            msg = status == "Rejected"
+                ? $"Your driver verification was rejected. Remarks: {(string.IsNullOrWhiteSpace(driver.VerificationRemarks) ? "No remarks provided." : driver.VerificationRemarks)}"
+                : "Your driver account is pending verification. Please wait for staff approval.";
+
+            jobs = new();
+            isLoading = false;
+            return;
+        }
+
         isLoading = true;
 
         jobs = db.Bookings
@@ -92,20 +129,59 @@ else
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
-        if (user == null) return;
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            return;
+        }
 
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
-        if (driver == null) return;
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            return;
+        }
+
+        // Verification check
+        var status = string.IsNullOrWhiteSpace(driver.VerificationStatus) ? "Pending" : driver.VerificationStatus;
+        if (status != "Approved")
+        {
+            msg = status == "Rejected"
+                ? $"Your driver verification was rejected. Remarks: {(string.IsNullOrWhiteSpace(driver.VerificationRemarks) ? "No remarks provided." : driver.VerificationRemarks)}"
+                : "Your driver account is pending verification. Please wait for staff approval.";
+            return;
+        }
+
+        if (driver.IsSuspended)
+        {
+            // auto-reactivate if suspension has expired
+            if (driver.SuspendedUntil.HasValue && driver.SuspendedUntil.Value <= DateTime.Now)
+            {
+                driver.IsSuspended = false;
+                driver.SuspendedReason = "";
+                driver.SuspendedUntil = null;
+                driver.SuspendedAt = null;
+                db.SaveChanges();
+            }
+            else
+            {
+                var untilText = driver.SuspendedUntil.HasValue ? driver.SuspendedUntil.Value.ToString("dd MMM yyyy, HH:mm") : "until further notice";
+                var reasonText = string.IsNullOrWhiteSpace(driver.SuspendedReason) ? "No reason provided." : driver.SuspendedReason;
+                msg = $"Your driver account is suspended ({untilText}). Reason: {reasonText}";
+                return;
+            }
+        }
 
         var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId);
-        if (booking == null || booking.Status != "Pending") return;
+        if (booking == null)
+        {
+            msg = "Booking not found.";
+            return;
+        }
 
-        booking.Status = "Accepted";
         booking.DriverId = driver.DriverProfileId;
-        booking.AcceptedAt = DateTime.Now;
+        booking.Status = "Accepted";
 
         await db.SaveChangesAsync();
-
-        await LoadJobs(); // refresh list
     }
 }

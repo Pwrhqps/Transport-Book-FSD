@@ -1,0 +1,214 @@
+﻿@page "/staff/verifydrivers"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Policy = "Staff2FA")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Verify Drivers</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+<div class="mb-3">
+    <label class="form-label fw-bold">Filter</label>
+    <select class="form-select" @bind="filter" @bind:after="OnFilterChanged">
+        <option value="Pending">Pending</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Approved">Approved</option>
+        <option value="All">All</option>
+    </select>
+</div>
+
+@if (isLoading)
+{
+    <p>Loading drivers...</p>
+}
+else if (drivers.Count == 0)
+{
+    <p>No drivers found for this filter.</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Driver</th>
+                <th>Contact</th>
+                <th>Vehicle Plate</th>
+                <th>License No.</th>
+                <th>Status</th>
+                <th style="width:260px;">Remarks (optional)</th>
+                <th style="width:240px;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{
+                int row = 1;
+            }
+            @foreach (var d in drivers)
+            {
+                <tr>
+                    <td>@row</td>
+                    <td>@d.FullName</td>
+                    <td>@d.ContactNumber</td>
+                    <td>@d.VehiclePlate</td>
+                    <td>@d.LicenseNumber</td>
+                    <td>@GetStatusText(d.VerificationStatus)</td>
+                    <td>
+                        <input class="form-control"
+                               value="@GetRemarkDraft(d.DriverProfileId)"
+                               @oninput="e => SetRemarkDraft(d.DriverProfileId, e.Value?.ToString() ?? string.Empty)" />
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-dark me-1"
+                                @onclick="() => OpenUserDetails(d.UserId)">
+                            Open
+                        </button>
+
+                        <button class="btn btn-sm btn-dark me-1"
+                                disabled="@(GetStatusText(d.VerificationStatus) == "Approved")"
+                                @onclick="() => Approve(d.DriverProfileId)">
+                            Approve
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-dark"
+                                disabled="@(GetStatusText(d.VerificationStatus) == "Rejected")"
+                                @onclick="() => Reject(d.DriverProfileId)">
+                            Reject
+                        </button>
+                    </td>
+                </tr>
+                row++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool isLoading = true;
+    private string filter = "Pending";
+    private string? msg;
+
+    private List<DriverProfile> drivers = new();
+
+    // store typed remarks per row
+    private Dictionary<int, string> remarkDraft = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Load();
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+
+        var q = db.DriverProfiles.AsQueryable();
+
+        // Safety: handle empty/null values from existing rows
+        // Treat empty as Pending
+        if (filter != "All")
+        {
+            if (filter == "Pending")
+            {
+                q = q.Where(d => d.VerificationStatus == "" || d.VerificationStatus == null || d.VerificationStatus == "Pending");
+            }
+            else
+            {
+                q = q.Where(d => d.VerificationStatus == filter);
+            }
+        }
+
+        drivers = await q
+            .OrderByDescending(d => d.DriverProfileId)
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    private string GetStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Pending";
+        return status;
+    }
+
+    private void OpenUserDetails(string userId)
+    {
+        nav.NavigateTo($"/staff/userdetails/{userId}?from=verifydrivers");
+    }
+
+    private string GetRemarkDraft(int driverProfileId)
+    {
+        if (remarkDraft.TryGetValue(driverProfileId, out var v))
+            return v;
+        return "";
+    }
+
+    private void SetRemarkDraft(int driverProfileId, string value)
+    {
+        remarkDraft[driverProfileId] = value;
+    }
+
+    private async Task<string> GetStaffUserId()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var u = await userManager.GetUserAsync(authState.User);
+        return u?.Id ?? "";
+    }
+
+    private async Task Approve(int driverProfileId)
+    {
+        var staffId = await GetStaffUserId();
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfileId);
+        if (d == null) return;
+
+        d.VerificationStatus = "Approved";
+        d.VerificationRemarks = GetRemarkDraft(driverProfileId).Trim();
+        d.VerifiedAt = DateTime.Now;
+        d.VerifiedByUserId = staffId;
+
+        await db.SaveChangesAsync();
+        msg = "Driver approved.";
+        await Load();
+    }
+
+    private async Task Reject(int driverProfileId)
+    {
+        var staffId = await GetStaffUserId();
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfileId);
+        if (d == null) return;
+
+        d.VerificationStatus = "Rejected";
+        d.VerificationRemarks = GetRemarkDraft(driverProfileId).Trim();
+        d.VerifiedAt = DateTime.Now;
+        d.VerifiedByUserId = staffId;
+
+        await db.SaveChangesAsync();
+        msg = "Driver rejected.";
+        await Load();
+    }
+}

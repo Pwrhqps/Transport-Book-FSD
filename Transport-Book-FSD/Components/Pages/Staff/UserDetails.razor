@@ -1,0 +1,354 @@
+﻿@page "/staff/userdetails/{UserId}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Policy = "Staff2FA")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject NavigationManager nav
+
+<h3>User Details</h3>
+
+@if (role == "Passenger" && passengerProfile != null)
+{
+    <div class="mb-3">
+        <span class="fw-bold">Account Status: </span>
+        <span>@(passengerProfile.IsSuspended ? "Suspended" : "Active")</span>
+
+        @if (passengerProfile.IsSuspended)
+        {
+            <div class="mt-2">
+                <div>
+                    <span class="fw-bold">Suspended At: </span>
+                    @(passengerProfile.SuspendedAt?.ToString("dd/MM/yyyy, HH:mm") ?? "")
+                </div>
+                <div>
+                    <span class="fw-bold">Suspended Until: </span>
+                    @(passengerProfile.SuspendedUntil?.ToString("dd/MM/yyyy") ?? "Until further notice")
+                </div>
+                <div>
+                    <span class="fw-bold">Reason: </span>
+                    @(string.IsNullOrWhiteSpace(passengerProfile.SuspendedReason) ? "No reason provided." : passengerProfile.SuspendedReason)
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark mt-2" @onclick="ReactivatePassenger">
+                    Reactivate
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="mt-2">
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Suspension Reason</label>
+                    <textarea class="form-control" rows="2" @bind="passengerSuspendReason"></textarea>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Suspended Until (optional)</label>
+                    <InputDate TValue="DateTime?" class="form-control" @bind-Value="passengerSuspendUntil" />
+                    <div class="form-text">Leave empty for indefinite suspension.</div>
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark" @onclick="SuspendPassenger">
+                    Suspend
+                </button>
+            </div>
+        }
+    </div>
+}
+else if (role == "Driver" && driverProfile != null)
+{
+    <div class="mb-3">
+        <span class="fw-bold">Account Status: </span>
+        <span>@(driverProfile.IsSuspended ? "Suspended" : "Active")</span>
+
+        @if (driverProfile.IsSuspended)
+        {
+            <div class="mt-2">
+                <div>
+                    <span class="fw-bold">Suspended At: </span>
+                    @(driverProfile.SuspendedAt?.ToString("dd/MM/yyyy, HH:mm") ?? "")
+                </div>
+                <div>
+                    <span class="fw-bold">Suspended Until: </span>
+                    @(driverProfile.SuspendedUntil?.ToString("dd/MM/yyyy") ?? "Until further notice")
+                </div>
+                <div>
+                    <span class="fw-bold">Reason: </span>
+                    @(string.IsNullOrWhiteSpace(driverProfile.SuspendedReason) ? "No reason provided." : driverProfile.SuspendedReason)
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark mt-2" @onclick="ReactivateDriver">
+                    Reactivate
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="mt-2">
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Suspension Reason</label>
+                    <textarea class="form-control" rows="2" @bind="driverSuspendReason"></textarea>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Suspended Until (optional)</label>
+                    <InputDate TValue="DateTime?" class="form-control" @bind-Value="driverSuspendUntil" />
+                    <div class="form-text">Leave empty for indefinite suspension.</div>
+                </div>
+
+                <button class="btn btn-sm btn-outline-dark" @onclick="SuspendDriver">
+                    Suspend
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@if (isLoading)
+{
+    <p>Loading user...</p>
+}
+else if (user == null)
+{
+    <p>User not found.</p>
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Email</div>
+                    <div>@(user.Email ?? "")</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Role</div>
+                    <div>@role</div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Name</div>
+                    <div>@displayName</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Phone</div>
+                    <div>@phone</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (role == "Passenger")
+    {
+        <h5>Passenger Profile</h5>
+        @if (passengerProfile == null)
+        {
+            <p>No passenger profile record found.</p>
+        }
+        else
+        {
+            <table class="table table-bordered">
+                <tbody>
+                    <tr><th style="width:220px;">Gender</th><td>@passengerProfile.Gender</td></tr>
+                    <tr><th>Date of Birth</th><td>@(passengerProfile.DateOfBirth?.ToString("dd/MM/yyyy") ?? "")</td></tr>
+                    <tr><th>Address</th><td>@passengerProfile.ResidentialAddress</td></tr>
+                    <tr><th>Emergency Contact</th><td>@passengerProfile.EmergencyContact</td></tr>
+                    <tr><th>Total Completed Trips</th><td>@passengerProfile.TotalCompletedTrips</td></tr>
+                    <tr><th>Penalty Balance</th><td>@passengerProfile.CancellationPenaltyBalance.ToString("0.00")</td></tr>
+                </tbody>
+            </table>
+        }
+    }
+    else if (role == "Driver")
+    {
+        <h5>Driver Profile</h5>
+        @if (driverProfile == null)
+        {
+            <p>No driver profile record found.</p>
+        }
+        else
+        {
+            <table class="table table-bordered">
+                <tbody>
+                    <tr><th style="width:220px;">Gender</th><td>@driverProfile.Gender</td></tr>
+                    <tr><th>Date of Birth</th><td>@(driverProfile.DateOfBirth?.ToString("dd/MM/yyyy") ?? "")</td></tr>
+                    <tr><th>Vehicle Type</th><td>@driverProfile.VehicleType</td></tr>
+                    <tr><th>Vehicle Model</th><td>@driverProfile.VehicleModel</td></tr>
+                    <tr><th>Vehicle Plate</th><td>@driverProfile.VehiclePlate</td></tr>
+                    <tr><th>License Number</th><td>@driverProfile.LicenseNumber</td></tr>
+                    <tr><th>Total Completed Trips</th><td>@driverProfile.TotalCompletedTrips</td></tr>
+                    <tr><th>Total Earnings</th><td>@driverProfile.TotalEarnings.ToString("0.00")</td></tr>
+                    <tr><th>Rating</th><td>@driverProfile.Rating.ToString("0.0")</td></tr>
+                </tbody>
+            </table>
+        }
+    }
+
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+
+@code {
+    [Parameter] public string UserId { get; set; } = "";
+
+    private bool isLoading = true;
+
+    private ApplicationUser? user;
+    private string role = "";
+    private string displayName = "";
+    private string phone = "";
+
+    private PassengerProfile? passengerProfile;
+    private DriverProfile? driverProfile;
+
+    // form fields (staff input)
+    private string passengerSuspendReason = "";
+    private DateTime? passengerSuspendUntil;
+
+    private string driverSuspendReason = "";
+    private DateTime? driverSuspendUntil;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Load();
+    }
+
+    private async Task SuspendPassenger()
+    {
+        if (passengerProfile == null) return;
+
+        var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
+        if (p == null) return;
+
+        p.IsSuspended = true;
+        p.SuspendedReason = passengerSuspendReason?.Trim() ?? "";
+        p.SuspendedUntil = passengerSuspendUntil;
+        p.SuspendedAt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+        await Load();
+    }
+
+    private async Task ReactivatePassenger()
+    {
+        if (passengerProfile == null) return;
+
+        var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
+        if (p == null) return;
+
+        p.IsSuspended = false;
+        p.SuspendedReason = "";
+        p.SuspendedUntil = null;
+        p.SuspendedAt = null;
+
+        await db.SaveChangesAsync();
+        await Load();
+    }
+
+    private async Task SuspendDriver()
+    {
+        if (driverProfile == null) return;
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
+        if (d == null) return;
+
+        d.IsSuspended = true;
+        d.SuspendedReason = driverSuspendReason?.Trim() ?? "";
+        d.SuspendedUntil = driverSuspendUntil;
+        d.SuspendedAt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+        await Load();
+    }
+
+    private async Task ReactivateDriver()
+    {
+        if (driverProfile == null) return;
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
+        if (d == null) return;
+
+        d.IsSuspended = false;
+        d.SuspendedReason = "";
+        d.SuspendedUntil = null;
+        d.SuspendedAt = null;
+
+        await db.SaveChangesAsync();
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+
+        user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId);
+        if (user == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        role = "Unknown";
+        if (await userManager.IsInRoleAsync(user, "Passenger")) role = "Passenger";
+        else if (await userManager.IsInRoleAsync(user, "Driver")) role = "Driver";
+        else if (await userManager.IsInRoleAsync(user, "Staff")) role = "Staff";
+
+        passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == UserId);
+        driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == UserId);
+
+        // auto-reactivate if suspension has expired
+        if (passengerProfile != null && passengerProfile.IsSuspended && passengerProfile.SuspendedUntil.HasValue && passengerProfile.SuspendedUntil.Value <= DateTime.Now.Date)
+        {
+            var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
+            if (p != null)
+            {
+                p.IsSuspended = false;
+                p.SuspendedReason = "";
+                p.SuspendedUntil = null;
+                p.SuspendedAt = null;
+                await db.SaveChangesAsync();
+            }
+            passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p2 => p2.UserId == UserId);
+        }
+
+        if (driverProfile != null && driverProfile.IsSuspended && driverProfile.SuspendedUntil.HasValue && driverProfile.SuspendedUntil.Value <= DateTime.Now.Date)
+        {
+            var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
+            if (d != null)
+            {
+                d.IsSuspended = false;
+                d.SuspendedReason = "";
+                d.SuspendedUntil = null;
+                d.SuspendedAt = null;
+                await db.SaveChangesAsync();
+            }
+            driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d2 => d2.UserId == UserId);
+        }
+
+        displayName = passengerProfile?.FullName ?? driverProfile?.FullName ?? (user.Email ?? "");
+        phone = passengerProfile?.ContactNumber ?? driverProfile?.ContactNumber ?? "";
+
+        // reset form fields
+        passengerSuspendReason = "";
+        passengerSuspendUntil = null;
+        driverSuspendReason = "";
+        driverSuspendUntil = null;
+
+        isLoading = false;
+    }
+
+    private void Back()
+    {
+        if (nav.Uri.Contains("from=verifydrivers"))
+            nav.NavigateTo("/staff/verifydrivers");
+        else
+            nav.NavigateTo("/staff/manageusers");
+    }
+}
