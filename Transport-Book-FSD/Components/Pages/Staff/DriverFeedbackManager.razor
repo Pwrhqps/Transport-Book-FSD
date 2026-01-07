@@ -68,24 +68,35 @@ else
                     <td>
                         @(d.SuspendedUntil.HasValue ? d.SuspendedUntil.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : (d.IsSuspended ? "Permanent" : "-"))
                     </td>
-                    <td>
-                        <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
-                                disabled="@ProcessingIds.Contains(d.DriverId)"
-                                @onclick="() => OnActionClick(d)">
-                            @if (ProcessingIds.Contains(d.DriverId))
-                            {
-                                <span>Processing...</span>
-                            }
-                            else if (d.IsSuspended)
-                            {
-                                <span>Unsuspend</span>
-                            }
-                            else
-                            {
-                                <span>Suspend</span>
-                            }
+                    <td style="width:260px;">
+                        @{
+                            var detailsUrl = $"/staff/userdetails/{d.UserId}?from=verifydrivers";
+                        }
+
+                        <button class="btn btn-sm btn-outline-dark me-2"
+                                @onclick="@(() => nav.NavigateTo(detailsUrl))">
+                            View Details
                         </button>
-                    </td>
+
+
+    <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
+            disabled="@ProcessingIds.Contains(d.DriverId)"
+            @onclick="() => OnActionClick(d)">
+        @if (ProcessingIds.Contains(d.DriverId))
+        {
+            <span>Processing...</span>
+        }
+        else if (d.IsSuspended)
+        {
+            <span>Unsuspend</span>
+        }
+        else
+        {
+            <span>Suspend</span>
+        }
+    </button>
+</td>
+
                 </tr>
             }
         </tbody>

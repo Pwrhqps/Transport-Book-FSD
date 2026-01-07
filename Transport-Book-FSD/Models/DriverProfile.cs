@@ -22,6 +22,8 @@ namespace Transport_Book_FSD.Models
 
         public DateTime? DateOfBirth { get; set; }
 
+        public DateTime? InterviewDate { get; set; }
+
         // Vehicle / license (basic for now)
         [StringLength(50)]
         public string VehicleType { get; set; } = "";
