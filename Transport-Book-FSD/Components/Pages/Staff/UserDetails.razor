@@ -14,103 +14,6 @@
 
 <h3>User Details</h3>
 
-@if (role == "Passenger" && passengerProfile != null)
-{
-    <div class="mb-3">
-        <span class="fw-bold">Account Status: </span>
-        <span>@(passengerProfile.IsSuspended ? "Suspended" : "Active")</span>
-
-        @if (passengerProfile.IsSuspended)
-        {
-            <div class="mt-2">
-                <div>
-                    <span class="fw-bold">Suspended At: </span>
-                    @(passengerProfile.SuspendedAt?.ToString("dd/MM/yyyy, HH:mm") ?? "")
-                </div>
-                <div>
-                    <span class="fw-bold">Suspended Until: </span>
-                    @(passengerProfile.SuspendedUntil?.ToString("dd/MM/yyyy") ?? "Until further notice")
-                </div>
-                <div>
-                    <span class="fw-bold">Reason: </span>
-                    @(string.IsNullOrWhiteSpace(passengerProfile.SuspendedReason) ? "No reason provided." : passengerProfile.SuspendedReason)
-                </div>
-
-                <button class="btn btn-sm btn-outline-dark mt-2" @onclick="ReactivatePassenger">
-                    Reactivate
-                </button>
-            </div>
-        }
-        else
-        {
-            <div class="mt-2">
-                <div class="mb-2">
-                    <label class="form-label fw-bold">Suspension Reason</label>
-                    <textarea class="form-control" rows="2" @bind="passengerSuspendReason"></textarea>
-                </div>
-
-                <div class="mb-2">
-                    <label class="form-label fw-bold">Suspended Until (optional)</label>
-                    <InputDate TValue="DateTime?" class="form-control" @bind-Value="passengerSuspendUntil" />
-                    <div class="form-text">Leave empty for indefinite suspension.</div>
-                </div>
-
-                <button class="btn btn-sm btn-outline-dark" @onclick="SuspendPassenger">
-                    Suspend
-                </button>
-            </div>
-        }
-    </div>
-}
-else if (role == "Driver" && driverProfile != null)
-{
-    <div class="mb-3">
-        <span class="fw-bold">Account Status: </span>
-        <span>@(driverProfile.IsSuspended ? "Suspended" : "Active")</span>
-
-        @if (driverProfile.IsSuspended)
-        {
-            <div class="mt-2">
-                <div>
-                    <span class="fw-bold">Suspended At: </span>
-                    @(driverProfile.SuspendedAt?.ToString("dd/MM/yyyy, HH:mm") ?? "")
-                </div>
-                <div>
-                    <span class="fw-bold">Suspended Until: </span>
-                    @(driverProfile.SuspendedUntil?.ToString("dd/MM/yyyy") ?? "Until further notice")
-                </div>
-                <div>
-                    <span class="fw-bold">Reason: </span>
-                    @(string.IsNullOrWhiteSpace(driverProfile.SuspendedReason) ? "No reason provided." : driverProfile.SuspendedReason)
-                </div>
-
-                <button class="btn btn-sm btn-outline-dark mt-2" @onclick="ReactivateDriver">
-                    Reactivate
-                </button>
-            </div>
-        }
-        else
-        {
-            <div class="mt-2">
-                <div class="mb-2">
-                    <label class="form-label fw-bold">Suspension Reason</label>
-                    <textarea class="form-control" rows="2" @bind="driverSuspendReason"></textarea>
-                </div>
-
-                <div class="mb-2">
-                    <label class="form-label fw-bold">Suspended Until (optional)</label>
-                    <InputDate TValue="DateTime?" class="form-control" @bind-Value="driverSuspendUntil" />
-                    <div class="form-text">Leave empty for indefinite suspension.</div>
-                </div>
-
-                <button class="btn btn-sm btn-outline-dark" @onclick="SuspendDriver">
-                    Suspend
-                </button>
-            </div>
-        }
-    </div>
-}
-
 @if (isLoading)
 {
     <p>Loading user...</p>
@@ -176,10 +79,17 @@ else
         }
         else
         {
+            <div class="mb-3" style="max-width:320px;">
+                <label class="form-label fw-bold">Interview Date</label>
+                <InputDate TValue="DateTime ?" class="form-control" @bind-Value="interviewDate" />
+                <button class="btn btn-sm btn-outline-dark mt-2" @onclick="SaveInterviewDate">Save</button>
+            </div>
+
             <table class="table table-bordered">
                 <tbody>
                     <tr><th style="width:220px;">Gender</th><td>@driverProfile.Gender</td></tr>
                     <tr><th>Date of Birth</th><td>@(driverProfile.DateOfBirth?.ToString("dd/MM/yyyy") ?? "")</td></tr>
+                    <tr><th>Interview Date</th><td>@(driverProfile.InterviewDate?.ToString("dd/MM/yyyy") ?? "")</td></tr>
                     <tr><th>Vehicle Type</th><td>@driverProfile.VehicleType</td></tr>
                     <tr><th>Vehicle Model</th><td>@driverProfile.VehicleModel</td></tr>
                     <tr><th>Vehicle Plate</th><td>@driverProfile.VehiclePlate</td></tr>
@@ -208,78 +118,21 @@ else
     private PassengerProfile? passengerProfile;
     private DriverProfile? driverProfile;
 
-    // form fields (staff input)
-    private string passengerSuspendReason = "";
-    private DateTime? passengerSuspendUntil;
-
-    private string driverSuspendReason = "";
-    private DateTime? driverSuspendUntil;
+    private DateTime? interviewDate;
 
     protected override async Task OnParametersSetAsync()
     {
         await Load();
     }
 
-    private async Task SuspendPassenger()
-    {
-        if (passengerProfile == null) return;
-
-        var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
-        if (p == null) return;
-
-        p.IsSuspended = true;
-        p.SuspendedReason = passengerSuspendReason?.Trim() ?? "";
-        p.SuspendedUntil = passengerSuspendUntil;
-        p.SuspendedAt = DateTime.Now;
-
-        await db.SaveChangesAsync();
-        await Load();
-    }
-
-    private async Task ReactivatePassenger()
-    {
-        if (passengerProfile == null) return;
-
-        var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
-        if (p == null) return;
-
-        p.IsSuspended = false;
-        p.SuspendedReason = "";
-        p.SuspendedUntil = null;
-        p.SuspendedAt = null;
-
-        await db.SaveChangesAsync();
-        await Load();
-    }
-
-    private async Task SuspendDriver()
+    private async Task SaveInterviewDate()
     {
         if (driverProfile == null) return;
 
         var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
         if (d == null) return;
 
-        d.IsSuspended = true;
-        d.SuspendedReason = driverSuspendReason?.Trim() ?? "";
-        d.SuspendedUntil = driverSuspendUntil;
-        d.SuspendedAt = DateTime.Now;
-
-        await db.SaveChangesAsync();
-        await Load();
-    }
-
-    private async Task ReactivateDriver()
-    {
-        if (driverProfile == null) return;
-
-        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
-        if (d == null) return;
-
-        d.IsSuspended = false;
-        d.SuspendedReason = "";
-        d.SuspendedUntil = null;
-        d.SuspendedAt = null;
-
+        d.InterviewDate = interviewDate;
         await db.SaveChangesAsync();
         await Load();
     }
@@ -303,43 +156,10 @@ else
         passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == UserId);
         driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == UserId);
 
-        // auto-reactivate if suspension has expired
-        if (passengerProfile != null && passengerProfile.IsSuspended && passengerProfile.SuspendedUntil.HasValue && passengerProfile.SuspendedUntil.Value <= DateTime.Now.Date)
-        {
-            var p = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.PassengerProfileId == passengerProfile.PassengerProfileId);
-            if (p != null)
-            {
-                p.IsSuspended = false;
-                p.SuspendedReason = "";
-                p.SuspendedUntil = null;
-                p.SuspendedAt = null;
-                await db.SaveChangesAsync();
-            }
-            passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p2 => p2.UserId == UserId);
-        }
-
-        if (driverProfile != null && driverProfile.IsSuspended && driverProfile.SuspendedUntil.HasValue && driverProfile.SuspendedUntil.Value <= DateTime.Now.Date)
-        {
-            var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
-            if (d != null)
-            {
-                d.IsSuspended = false;
-                d.SuspendedReason = "";
-                d.SuspendedUntil = null;
-                d.SuspendedAt = null;
-                await db.SaveChangesAsync();
-            }
-            driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d2 => d2.UserId == UserId);
-        }
-
         displayName = passengerProfile?.FullName ?? driverProfile?.FullName ?? (user.Email ?? "");
         phone = passengerProfile?.ContactNumber ?? driverProfile?.ContactNumber ?? "";
 
-        // reset form fields
-        passengerSuspendReason = "";
-        passengerSuspendUntil = null;
-        driverSuspendReason = "";
-        driverSuspendUntil = null;
+        interviewDate = driverProfile?.InterviewDate;
 
         isLoading = false;
     }
