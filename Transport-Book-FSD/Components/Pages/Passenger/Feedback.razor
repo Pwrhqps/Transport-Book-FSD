@@ -200,17 +200,20 @@ else
             return;
         }
 
-        // ✅ IMPORTANT: fully qualify model type (prevents Feedback page class conflict)
+        //]     (prevents Feedback page class conflict)
         var fb = new Transport_Book_FSD.Models.Feedback
         {
             BookingId = b.BookingId,
             Rating = rating,
             Comment = comment,
-            CreatedAt = DateTime.Now
+            CreatedAt = DateTime.Now,
+            DriverId = b.DriverId,                
+            PassengerId = passenger.PassengerId
         };
 
         db.Feedbacks.Add(fb);
         await db.SaveChangesAsync();
+
 
         msg = "Feedback submitted!";
         await Load();

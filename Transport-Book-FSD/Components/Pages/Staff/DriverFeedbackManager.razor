@@ -1,0 +1,216 @@
+﻿@page "/staff/drivers"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@using Transport_Book_FSD.Components.Pages.Staff
+@attribute [Authorize(Roles = "Staff")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject NavigationManager nav
+
+<h3>Drivers & Ratings</h3>
+
+<div class="mb-3">
+    <label for="sortSelect">Sort by rating:</label>
+    <select id="sortSelect" class="form-select" style="width:220px; display:inline-block; margin-left:8px;"
+            @bind="SortOrder">
+        <option value="desc">Highest → Lowest</option>
+        <option value="asc">Lowest → Highest</option>
+    </select>
+
+    <button class="btn btn-secondary" @onclick="Reload" style="margin-left:12px;">Refresh</button>
+</div>
+
+@if (IsLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (Drivers?.Any() != true)
+{
+    <p>No drivers found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Driver</th>
+                <th>Overall Rating</th>
+                <th>Status</th>
+                <th style="width:160px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var d in Drivers)
+            {
+                <tr>
+                    <td>@d.FullName</td>
+                    <td>@d.Rating.ToString("0.00")</td>
+                    <td>
+                        @if (d.IsSuspended)
+                        {
+                            <strong class="text-danger">Suspended</strong>
+                        }
+                        else
+                        {
+                            <span>Active</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
+                                disabled="@ProcessingIds.Contains(d.DriverId)"
+                                @onclick="() => ToggleSuspendAsync(d)">
+                            @if (ProcessingIds.Contains(d.DriverId))
+                            {
+                                <span>Processing...</span>
+                            }
+                            else if (d.IsSuspended)
+                            {
+                                <span>Unsuspend</span>
+                            }
+                            else
+                            {
+                                <span>Suspend</span>
+                            }
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<DriverRatingViewModel> Drivers = new();
+    private bool IsLoading = true;
+    private string SortOrder = "desc"; // "desc" or "asc"
+    private HashSet<int> ProcessingIds = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDriversAsync();
+    }
+
+    private async Task LoadDriversAsync()
+    {
+        IsLoading = true;
+        try
+        {
+            // Compute average ratings from Feedbacks grouped by DriverId
+            var ratingsDict = await (
+                from f in db.Feedbacks
+                join b in db.Bookings on f.BookingId equals b.BookingId
+                where b.DriverId != null
+                group f by b.DriverId into g
+                select new { DriverId = g.Key!.Value, Avg = g.Average(x => x.Rating) }
+            ).ToDictionaryAsync(x => x.DriverId, x => x.Avg);
+
+            var drivers = await db.DriverProfiles
+                .AsNoTracking()
+                .ToListAsync();
+
+            Drivers = drivers.Select(d =>
+            {
+                double rating = d.Rating;
+                if (ratingsDict.TryGetValue(d.DriverProfileId, out var avg))
+                {
+                    rating = Math.Round(avg, 2);
+                }
+
+                return new DriverRatingViewModel
+                {
+                    DriverId = d.DriverProfileId,
+                    FullName = d.FullName,
+                    Rating = rating,
+                    IsSuspended = d.IsSuspended
+                };
+            }).ToList();
+
+            ApplySort();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading drivers: {ex.Message}");
+            Drivers = new List<DriverRatingViewModel>();
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleSuspendAsync(DriverRatingViewModel driver)
+    {
+        var action = driver.IsSuspended ? "unsuspend" : "suspend";
+        var confirmMessage = driver.IsSuspended
+            ? $"Are you sure you want to unsuspend {driver.FullName.Trim()}?"
+            : $"Are you sure you want to suspend {driver.FullName.Trim()}?";
+
+        var ok = await JS.InvokeAsync<bool>("confirm", confirmMessage);
+        if (!ok) return;
+
+        ProcessingIds.Add(driver.DriverId);
+        StateHasChanged();
+
+        try
+        {
+            var entity = await db.DriverProfiles.FindAsync(driver.DriverId);
+            if (entity == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Driver record not found.");
+                return;
+            }
+
+            if (driver.IsSuspended)
+            {
+                // Unsuspend
+                entity.IsSuspended = false;
+                entity.SuspendedAt = null;
+                entity.SuspendedReason = "";
+            }
+            else
+            {
+                // Suspend (soft)
+                entity.IsSuspended = true;
+                entity.SuspendedAt = DateTime.UtcNow;
+                // Optionally set reason; keep blank for now
+            }
+
+            await db.SaveChangesAsync();
+
+            // update UI model
+            driver.IsSuspended = entity.IsSuspended;
+            // keep rating unchanged
+
+            // Re-apply sort in case you want to keep ordering consistent
+            ApplySort();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Action failed: {ex.Message}");
+        }
+        finally
+        {
+            ProcessingIds.Remove(driver.DriverId);
+            StateHasChanged();
+        }
+    }
+
+    private void ApplySort()
+    {
+        if (SortOrder == "asc")
+            Drivers = Drivers.OrderBy(d => d.Rating).ThenBy(d => d.FullName).ToList();
+        else
+            Drivers = Drivers.OrderByDescending(d => d.Rating).ThenBy(d => d.FullName).ToList();
+    }
+
+    private Task Reload() => LoadDriversAsync();
+}
