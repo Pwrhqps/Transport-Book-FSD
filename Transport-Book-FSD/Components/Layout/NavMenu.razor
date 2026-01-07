@@ -1,5 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
 @using System.Security.Claims
+@inject NavigationManager Nav
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -13,6 +15,7 @@
     <nav class="flex-column">
 
         <AuthorizeView Context="auth">
+
             <NotAuthorized>
                 <!-- Only show Home when NOT logged in -->
                 <div class="nav-item px-3">
@@ -35,123 +38,92 @@
             </NotAuthorized>
 
             <Authorized>
-                @* Role-based links (no Home shown when logged in) *@
-                @if (auth.User.IsInRole("Passenger"))
-                {
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="passenger/home">
-                            <span class="bi bi-person" aria-hidden="true"></span> Passenger Home
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="passenger/profile">
-                            <span class="bi bi-person-vcard" aria-hidden="true"></span> My Profile
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="passenger/book">
-                            Book a Ride
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="passenger/mybookings">
-                            My Bookings
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="passenger/bookinghistory">
-                            Booking History
-                        </NavLink>
-                    </div>
-
-                }
-
-                @if (auth.User.IsInRole("Driver"))
-                {
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/home">
-                            <span class="bi bi-car-front" aria-hidden="true"></span> Driver Home
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/profile">My Profile</NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/jobs">
-                            Available Jobs
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/myjobs">
-                            My Jobs
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/myschedule">
-                            My Schedule
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="driver/feedbacks">
-                            Feedback
-                        </NavLink>
-                    </div>
-
-                }
-
-                @if (auth.User.IsInRole("Staff"))
-                {
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="staff/home">
-                            <span class="bi bi-person-badge" aria-hidden="true"></span> Staff Dashboard
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="staff/manageusers">
-                            Manage Users
-                        </NavLink>
-                    </div>
-
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="staff/verifydrivers">
-                            Verify Drivers
-                        </NavLink>
-                    </div>
-                }
-
-                @* Email row (separate rectangle like lab) *@
                 @{
+                    var rel = Nav.ToBaseRelativePath(Nav.Uri);
+
+                    var isStaffVerify =
+                    rel.Contains("staff", StringComparison.OrdinalIgnoreCase)
+                    && (
+                    rel.Contains("verify", StringComparison.OrdinalIgnoreCase)
+                    || rel.Contains("verification", StringComparison.OrdinalIgnoreCase)
+                    || rel.Contains("otp", StringComparison.OrdinalIgnoreCase)
+                    || rel.Contains("2fa", StringComparison.OrdinalIgnoreCase)
+                    );
+
                     var email = auth.User.FindFirst(ClaimTypes.Email)?.Value
                     ?? auth.User.Identity?.Name
                     ?? "";
                 }
-                <div class="nav-item px-3">
-                    <div class="nav-link" style="cursor: default;">
-                        <span class="bi bi-person-circle" aria-hidden="true"></span>
-                        <span style="margin-left:6px;">@email</span>
-                    </div>
-                </div>
 
-                @* Logout row *@
-                <div class="nav-item px-3">
-                    <form method="post" action="/auth/logout" style="margin:0;">
-                        <button type="submit" class="nav-link btn btn-link" style="padding:0; width:100%; text-align:left;">
-                            <span class="bi bi-box-arrow-right" aria-hidden="true"></span>
-                            <span style="margin-left:6px;">Logout</span>
-                        </button>
-                    </form>
-                </div>
+
+                @if (isStaffVerify)
+                {
+                    <!-- Force public menu during OTP verification -->
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                            Home
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="auth/login">
+                            Login
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="auth/register">
+                            Register
+                        </NavLink>
+                    </div>
+                }
+                else
+                {
+                    @* ===== NORMAL AUTHENTICATED MENUS ===== *@
+
+                    @if (auth.User.IsInRole("Passenger"))
+                    {
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="passenger/home">Passenger Home</NavLink>
+                        </div>
+                    }
+
+                    @if (auth.User.IsInRole("Driver"))
+                    {
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="driver/home">Driver Home</NavLink>
+                        </div>
+                    }
+
+                    @if (auth.User.IsInRole("Staff"))
+                    {
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="staff/home">Staff Dashboard</NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="staff/manageusers">Manage Users</NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="staff/verifydrivers">Verify Drivers</NavLink>
+                        </div>
+                    }
+
+                    <div class="nav-item px-3">
+                        <div class="nav-link" style="cursor: default;">
+                            @email
+                        </div>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <form method="post" action="/auth/logout">
+                            <button type="submit" class="nav-link btn btn-link">Logout</button>
+                        </form>
+                    </div>
+                }
             </Authorized>
+
 
         </AuthorizeView>
 

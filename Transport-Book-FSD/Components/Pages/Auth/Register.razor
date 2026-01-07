@@ -1,12 +1,17 @@
 ﻿@page "/auth/register"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Identity
-@using Transport_Book_FSD.Models 
+@using Transport_Book_FSD.Models
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager Nav
+@inject AppDbContext db
+
 
 <h3>Register</h3>
 
@@ -50,15 +55,28 @@
                     <label class="form-label">Phone Number</label>
                     <InputText class="form-control" @bind-Value="form.PhoneNumber" name="PhoneNumber" />
                 </div>
+
                 <div class="mb-3">
                     <label class="form-label">Vehicle Type</label>
                     <InputText class="form-control" @bind-Value="form.VehicleType" name="VehicleType" />
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Model</label>
+                    <InputText class="form-control" @bind-Value="form.VehicleModel" name="VehicleModel" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">License Number</label>
+                    <InputText class="form-control" @bind-Value="form.LicenseNumber" name="LicenseNumber" />
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Lincense Plate Number</label>
                     <InputText class="form-control" @bind-Value="form.LicensePlate" name="LicensePlate" />
                 </div>
             }
+
 
             <button class="btn btn-dark" type="submit">Register</button>
             <a class="btn btn-outline-dark ms-2" href="/auth/login">Login</a>
@@ -89,9 +107,9 @@
         {
             UserName = form.Email,
             Email = form.Email,
-            PhoneNumber = form.PhoneNumber, 
-            VehicleType = form.VehicleType, 
-            LicensePlate = form.LicensePlate 
+            PhoneNumber = form.PhoneNumber,
+            VehicleType = form.VehicleType,
+            LicensePlate = form.LicensePlate
         };
 
         var result = await UserManager.CreateAsync(user, form.Password);
@@ -110,8 +128,53 @@
             return;
         }
 
-        Nav.NavigateTo("/auth/login", true);
+        // ✅ Create profile record so profile pages show correct data
+        if (form.Role == "Driver")
+        {
+            var exists = await db.DriverProfiles.FirstOrDefaultAsync(x => x.UserId == user.Id);
+            if (exists == null)
+            {
+                var dp = new DriverProfile
+                {
+                    UserId = user.Id,
+                    FullName = user.Email ?? "Driver",
+                    ContactNumber = form.PhoneNumber?.Trim() ?? "",
+                    Gender = "Male",
+                    VehicleType = form.VehicleType?.Trim() ?? "",
+                    VehicleModel = form.VehicleModel?.Trim() ?? "",
+                    VehiclePlate = form.LicensePlate?.Trim() ?? "",
+                    LicenseNumber = form.LicenseNumber?.Trim() ?? "",
+                    VerificationStatus = "Pending",
+                    Rating = 0,
+                    TotalCompletedTrips = 0,
+                    TotalEarnings = 0
+                };
 
+
+
+                db.DriverProfiles.Add(dp);
+                await db.SaveChangesAsync();
+            }
+        }
+        else if (form.Role == "Passenger")
+        {
+            var exists = await db.PassengerProfiles.FirstOrDefaultAsync(x => x.UserId == user.Id);
+            if (exists == null)
+            {
+                var pp = new PassengerProfile
+                {
+                    UserId = user.Id,
+                    FullName = user.Email ?? "Passenger",
+                    ContactNumber = form.PhoneNumber?.Trim() ?? "",
+                    Gender = ""
+                };
+
+                db.PassengerProfiles.Add(pp);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        Nav.NavigateTo("/auth/login", true);
     }
 
     private class RegisterForm
@@ -127,11 +190,15 @@
 
         public string Role { get; set; } = "Passenger";
 
-
         public string? PhoneNumber { get; set; }
 
         public string? VehicleType { get; set; }
 
+        public string? VehicleModel { get; set; }
+
+        public string? LicenseNumber { get; set; }
+
         public string? LicensePlate { get; set; }
+
     }
 }

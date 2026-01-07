@@ -5,11 +5,12 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
                 <NotAuthorized>
-                    <LayoutView Layout="@typeof(Layout.MainLayout)">
+                    <div class="p-4">
                         <p>You are not authorized. Please log in.</p>
                         <a class="btn btn-primary" href="/auth/login">Go to Login</a>
-                    </LayoutView>
+                    </div>
                 </NotAuthorized>
+
             </AuthorizeRouteView>
 
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
