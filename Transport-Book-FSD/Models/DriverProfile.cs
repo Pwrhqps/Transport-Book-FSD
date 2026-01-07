@@ -53,9 +53,6 @@ namespace Transport_Book_FSD.Models
 
         public DateTime? VerifiedAt { get; set; }
 
-        public DateTime? InterviewDate { get; set; }
-
-
         [StringLength(450)]
         public string VerifiedByUserId { get; set; } = "";
     }
