@@ -6,7 +6,6 @@
 @using Microsoft.EntityFrameworkCore
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
-@using Transport_Book_FSD.Components.Pages.Staff
 @attribute [Authorize(Roles = "Staff")]
 
 @inject AppDbContext db
@@ -44,7 +43,9 @@ else
                 <th>Driver</th>
                 <th>Overall Rating</th>
                 <th>Status</th>
-                <th style="width:160px;">Actions</th>
+                <th>Suspension Reason</th>
+                <th>Suspended Until</th>
+                <th style="width:180px;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -63,10 +64,14 @@ else
                             <span>Active</span>
                         }
                     </td>
+                    <td>@(string.IsNullOrWhiteSpace(d.SuspendedReason) ? "-" : d.SuspendedReason)</td>
+                    <td>
+                        @(d.SuspendedUntil.HasValue ? d.SuspendedUntil.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : (d.IsSuspended ? "Permanent" : "-"))
+                    </td>
                     <td>
                         <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
                                 disabled="@ProcessingIds.Contains(d.DriverId)"
-                                @onclick="() => ToggleSuspendAsync(d)">
+                                @onclick="() => OnActionClick(d)">
                             @if (ProcessingIds.Contains(d.DriverId))
                             {
                                 <span>Processing...</span>
@@ -87,11 +92,77 @@ else
     </table>
 }
 
+@* Simple modal overlay to collect reason + duration for suspension *@
+@if (ShowSuspendDialog && SelectedDriverForDialog != null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal d-block" tabindex="-1" style="display:block;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Suspend @SelectedDriverForDialog.FullName</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CancelSuspend"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Reason (optional)</label>
+                        <input class="form-control" @bind="SuspendReason" placeholder="Enter reason" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Duration</label>
+                        <select class="form-select" @bind="SelectedDurationKey">
+                            @foreach (var opt in DurationOptions)
+                            {
+                                <option value="@opt.Key">@opt.Label</option>
+                            }
+                        </select>
+                        <div class="form-text">Choose how long the suspension should last.</div>
+                    </div>
+
+                    <div>
+                        <strong>Preview:</strong>
+                        <div>
+                            @if (SelectedDurationDays.HasValue)
+                            {
+                                <span>Ends: @DateTime.UtcNow.AddDays(SelectedDurationDays.Value).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span>Permanent suspension</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelSuspend">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmSuspendAsync">Confirm Suspend</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<DriverRatingViewModel> Drivers = new();
     private bool IsLoading = true;
     private string SortOrder = "desc"; // "desc" or "asc"
     private HashSet<int> ProcessingIds = new();
+
+    // suspend modal state
+    private bool ShowSuspendDialog = false;
+    private DriverRatingViewModel? SelectedDriverForDialog;
+    private string? SuspendReason;
+    private string SelectedDurationKey = "7"; // default key
+    private readonly List<(string Key, string Label, int? Days)> DurationOptions = new()
+    {
+        ("1", "1 day", 1),
+        ("7", "7 days", 7),
+        ("30", "30 days", 30),
+        ("perm", "Permanent", null)
+    };
+
+    private int? SelectedDurationDays => DurationOptions.FirstOrDefault(o => o.Key == SelectedDurationKey).Days;
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,7 +174,7 @@ else
         IsLoading = true;
         try
         {
-            // Compute average ratings from Feedbacks grouped by DriverId
+            // compute average rating per driver by joining Feedback -> Booking
             var ratingsDict = await (
                 from f in db.Feedbacks
                 join b in db.Bookings on f.BookingId equals b.BookingId
@@ -112,9 +183,7 @@ else
                 select new { DriverId = g.Key!.Value, Avg = g.Average(x => x.Rating) }
             ).ToDictionaryAsync(x => x.DriverId, x => x.Avg);
 
-            var drivers = await db.DriverProfiles
-                .AsNoTracking()
-                .ToListAsync();
+            var drivers = await db.DriverProfiles.AsNoTracking().ToListAsync();
 
             Drivers = drivers.Select(d =>
             {
@@ -129,7 +198,9 @@ else
                     DriverId = d.DriverProfileId,
                     FullName = d.FullName,
                     Rating = rating,
-                    IsSuspended = d.IsSuspended
+                    IsSuspended = d.IsSuspended,
+                    SuspendedReason = string.IsNullOrWhiteSpace(d.SuspendedReason) ? null : d.SuspendedReason,
+                    SuspendedUntil = d.SuspendedUntil
                 };
             }).ToList();
 
@@ -147,14 +218,42 @@ else
         }
     }
 
-    private async Task ToggleSuspendAsync(DriverRatingViewModel driver)
+    private void ApplySort()
     {
-        var action = driver.IsSuspended ? "unsuspend" : "suspend";
-        var confirmMessage = driver.IsSuspended
-            ? $"Are you sure you want to unsuspend {driver.FullName.Trim()}?"
-            : $"Are you sure you want to suspend {driver.FullName.Trim()}?";
+        if (SortOrder == "asc")
+            Drivers = Drivers.OrderBy(d => d.Rating).ThenBy(d => d.FullName).ToList();
+        else
+            Drivers = Drivers.OrderByDescending(d => d.Rating).ThenBy(d => d.FullName).ToList();
+    }
 
-        var ok = await JS.InvokeAsync<bool>("confirm", confirmMessage);
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        ApplySort();
+        await Task.CompletedTask;
+    }
+
+    private Task Reload() => LoadDriversAsync();
+
+    private void OnActionClick(DriverRatingViewModel d)
+    {
+        if (d.IsSuspended)
+        {
+            // unsuspend inline (confirm)
+            _ = UnsuspendAsync(d);
+        }
+        else
+        {
+            // show modal to collect reason + duration
+            SelectedDriverForDialog = d;
+            SuspendReason = "";
+            SelectedDurationKey = "7";
+            ShowSuspendDialog = true;
+        }
+    }
+
+    private async Task UnsuspendAsync(DriverRatingViewModel driver)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to unsuspend {driver.FullName.Trim()}?");
         if (!ok) return;
 
         ProcessingIds.Add(driver.DriverId);
@@ -169,30 +268,22 @@ else
                 return;
             }
 
-                entity.IsSuspended = false;
-                entity.SuspendedAt = null;
-                entity.SuspendedReason = "";
-            }
-            else
-            {
-                // Suspend (soft)
-                entity.IsSuspended = true;
-                entity.SuspendedAt = DateTime.UtcNow;
-                // Optionally set reason; keep blank for now
-            }
+            entity.IsSuspended = false;
+            entity.SuspendedAt = null;
+            entity.SuspendedUntil = null;
+            entity.SuspendedReason = "";
+            // optionally clear SuspendedByUserId if you add that separate field
 
             await db.SaveChangesAsync();
 
-            // update UI model
-            driver.IsSuspended = entity.IsSuspended;
-            // keep rating unchanged
-
-            // Re-apply sort in case you want to keep ordering consistent
+            driver.IsSuspended = false;
+            driver.SuspendedReason = null;
+            driver.SuspendedUntil = null;
             ApplySort();
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Action failed: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Unsuspend failed: {ex.Message}");
         }
         finally
         {
@@ -201,13 +292,65 @@ else
         }
     }
 
-    private void ApplySort()
+    private void CancelSuspend()
     {
-        if (SortOrder == "asc")
-            Drivers = Drivers.OrderBy(d => d.Rating).ThenBy(d => d.FullName).ToList();
-        else
-            Drivers = Drivers.OrderByDescending(d => d.Rating).ThenBy(d => d.FullName).ToList();
+        ShowSuspendDialog = false;
+        SelectedDriverForDialog = null;
+        SuspendReason = null;
     }
 
-    private Task Reload() => LoadDriversAsync();
+    private async Task ConfirmSuspendAsync()
+    {
+        if (SelectedDriverForDialog == null)
+        {
+            CancelSuspend();
+            return;
+        }
+
+        ProcessingIds.Add(SelectedDriverForDialog.DriverId);
+        StateHasChanged();
+
+        try
+        {
+            var entity = await db.DriverProfiles.FindAsync(SelectedDriverForDialog.DriverId);
+            if (entity == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Driver record not found.");
+                return;
+            }
+
+            // who is performing suspension
+            var authState = await authStateProvider.GetAuthenticationStateAsync();
+            var staffUser = await userManager.GetUserAsync(authState.User);
+            var staffUserId = staffUser?.Id ?? "";
+
+            entity.IsSuspended = true;
+            entity.SuspendedAt = DateTime.UtcNow;
+            entity.SuspendedReason = SuspendReason ?? "";
+            var days = SelectedDurationDays;
+            entity.SuspendedUntil = days.HasValue ? DateTime.UtcNow.AddDays(days.Value) : null;
+
+            // if you create a separate SuspendedByUserId property, set it here:
+            // entity.SuspendedByUserId = staffUserId;
+
+            await db.SaveChangesAsync();
+
+            // update the view-model item
+            SelectedDriverForDialog.IsSuspended = entity.IsSuspended;
+            SelectedDriverForDialog.SuspendedReason = string.IsNullOrWhiteSpace(entity.SuspendedReason) ? null : entity.SuspendedReason;
+            SelectedDriverForDialog.SuspendedUntil = entity.SuspendedUntil;
+
+            ApplySort();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Suspend failed: {ex.Message}");
+        }
+        finally
+        {
+            ProcessingIds.Remove(SelectedDriverForDialog.DriverId);
+            CancelSuspend();
+            StateHasChanged();
+        }
+    }
 }
