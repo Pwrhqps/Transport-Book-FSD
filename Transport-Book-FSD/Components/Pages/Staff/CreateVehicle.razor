@@ -1,0 +1,67 @@
+﻿@page "/staff/vehicles/create"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Staff")]
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@inject AppDbContext _db
+@inject NavigationManager NavigationManager
+
+<h3>Add Vehicle</h3>
+
+<EditForm Model="vehicle" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Make</label>
+        <InputText class="form-control" @bind-Value="vehicle.Make" />
+    </div>
+    <div class="mb-3">
+        <label>Model</label>
+        <InputText class="form-control" @bind-Value="vehicle.Model" />
+    </div>
+    <div class="mb-3">
+        <label>Year</label>
+        <InputNumber class="form-control" @bind-Value="vehicle.Year" />
+    </div>
+    <div class="mb-3">
+        <label>Colour</label>
+        <InputText class="form-control" @bind-Value="vehicle.Colour" />
+    </div>
+    <div class="mb-3">
+        <label>License Plate</label>
+        <InputText class="form-control" @bind-Value="vehicle.LicensePlate" />
+    </div>
+    <div class="mb-3">
+        <label>Type</label>
+        <InputText class="form-control" @bind-Value="vehicle.VehicleType" />
+    </div>
+    <div class="mb-3">
+        <label>Daily Rate</label>
+        <InputNumber class="form-control" @bind-Value="vehicle.DailyRate" />
+    </div>
+    <div class="form-check mb-3">
+        <InputCheckbox class="form-check-input" @bind-Value="vehicle.IsAvailable" />
+        <label class="form-check-label">Available</label>
+    </div>
+
+    <div class="mb-3">
+        <label>Note</label>
+        <InputTextArea class="form-control" @bind-Value="vehicle.Note" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Save</button>
+    <button class="btn btn-secondary" type="button" @onclick="Cancel">Back</button>
+</EditForm>
+
+@code {
+    private Transport_Book_FSD.Models.Vehicle vehicle = new();
+
+    private async Task HandleValidSubmit()
+    {
+        _db.Vehicles.Add(vehicle);
+        await _db.SaveChangesAsync();
+        NavigationManager.NavigateTo("/staff/vehicles");
+    }
+
+    private void Cancel() => NavigationManager.NavigateTo("/staff/vehicles");
+}

@@ -1,0 +1,89 @@
+﻿@page "/staff/vehicles"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Staff")]
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@inject AppDbContext _db
+@inject NavigationManager NavigationManager
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+
+<h3>Manage Vehicles</h3>
+
+<p>
+    <button class="btn btn-primary" @onclick="CreateNew">Add Vehicle</button>
+</p>
+
+@if (vehicles == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!vehicles.Any())
+{
+    <p>No vehicles found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Year</th>
+                <th>Colour</th>
+                <th>License</th>
+                <th>Type</th>
+                <th>Rate</th>
+                <th>Available</th>
+                <th>Note</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var v in vehicles)
+            {
+                <tr>
+                    <td>@v.Make</td>
+                    <td>@v.Model</td>
+                    <td>@v.Year</td>
+                    <td>@v.Colour</td>
+                    <td>@v.LicensePlate</td>
+                    <td>@v.VehicleType</td>
+                    <td>@(v.DailyRate?.ToString("C") ?? "-")</td>
+                    <td>@(v.IsAvailable ? "Yes" : "No")</td>
+                    <td>@(string.IsNullOrWhiteSpace(v.Note) ? "-" : (v.Note.Length > 50 ? v.Note.Substring(0, 50) + "…" : v.Note))</td>
+                    <td>
+                        <button class="btn btn-link" @onclick="() => Edit(v.VehicleId)">Edit</button>
+                        <button class="btn btn-link text-danger" @onclick="() => ConfirmDelete(v.VehicleId)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Transport_Book_FSD.Models.Vehicle> vehicles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        vehicles = await _db.Vehicles.AsNoTracking().OrderBy(v => v.Make).ThenBy(v => v.Model).ToListAsync();
+    }
+
+    private void CreateNew() => NavigationManager.NavigateTo("/staff/vehicles/create");
+    private void Edit(int id) => NavigationManager.NavigateTo($"/staff/vehicles/edit/{id}");
+
+    private async Task ConfirmDelete(int id)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Delete this vehicle?"))
+        {
+            var v = await _db.Vehicles.FindAsync(id);
+            if (v != null)
+            {
+                _db.Vehicles.Remove(v);
+                await _db.SaveChangesAsync();
+                vehicles = await _db.Vehicles.AsNoTracking().OrderBy(v => v.Make).ThenBy(v => v.Model).ToListAsync();
+                StateHasChanged();
+            }
+        }
+    }
+}

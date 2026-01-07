@@ -1,0 +1,57 @@
+﻿@page "/driver/vehicles/details/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@inject AppDbContext _db
+@inject NavigationManager NavigationManager
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Vehicle vehicle;
+    private bool loading = true;
+}
+
+<h3>Vehicle details</h3>
+
+@if (loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (vehicle == null)
+{
+    <p class="text-danger">Vehicle not found or unavailable.</p>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">@vehicle.Make @vehicle.Model (@vehicle.Year)</h4>
+            <h6 class="card-subtitle mb-2 text-muted">@vehicle.VehicleType — @vehicle.Colour</h6>
+            <p class="card-text">
+                <strong>License:</strong> @vehicle.LicensePlate <br />
+                <strong>Daily Rate:</strong> @(vehicle.DailyRate?.ToString("C") ?? "-") <br />
+                <strong>Availability:</strong> @(vehicle.IsAvailable ? "Available" : "Not available") <br />
+                @if (!string.IsNullOrWhiteSpace(vehicle.Note))
+                {
+                    <strong>Note:</strong> 
+                    @vehicle.Note
+                }
+            </p>
+        </div>
+        <div class="card-footer">
+            <button class="btn btn-secondary" @onclick="GoBack">Back</button>
+        </div>
+    </div>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        vehicle = await _db.Vehicles.FindAsync(Id);
+        // Optional: hide unavailable vehicles:
+        // if (vehicle != null && !vehicle.IsAvailable) vehicle = null;
+        loading = false;
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/driver/vehicles");
+}

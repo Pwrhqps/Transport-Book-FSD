@@ -1,0 +1,53 @@
+﻿@page "/driver/vehicles"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@inject AppDbContext _db
+@inject NavigationManager NavigationManager
+
+<h3>Available Vehicles for Rent</h3>
+
+@if (vehicles == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!vehicles.Any())
+{
+    <p>No vehicles currently available.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var v in vehicles)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@v.Make @v.Model (@v.Year)</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">@v.VehicleType — @v.Colour</h6>
+                        <p class="card-text">
+                            License: @v.LicensePlate <br />
+                            Rate: @(v.DailyRate?.ToString("C") ?? "-")
+                        </p>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-success">@((v.IsAvailable) ? "Available" : "Not available")</small>
+                        <button class="btn btn-sm btn-outline-primary float-end" @onclick="() => ShowDetails(v.VehicleId)">Details</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Transport_Book_FSD.Models.Vehicle> vehicles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        vehicles = await _db.Vehicles.AsNoTracking().Where(v => v.IsAvailable).OrderBy(v => v.Make).ToListAsync();
+    }
+
+    private void ShowDetails(int id) => NavigationManager.NavigateTo($"/driver/vehicles/details/{id}");
+}

@@ -20,5 +20,7 @@ namespace Transport_Book_FSD.Data
 
         // Staff
         public DbSet<Staff> Staffs { get; set; }
+
+        public DbSet<Vehicle> Vehicles { get; set; }
     }
 }

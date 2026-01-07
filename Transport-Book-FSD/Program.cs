@@ -40,6 +40,7 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddCascadingAuthenticationState();
 
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
