@@ -114,16 +114,8 @@ else
                 {
                     UserId = user.Id,
                     FullName = user.Email ?? "Driver",
-                    ContactNumber = user.PhoneNumber ?? "",
-                    Gender = "Male",
-                    VehicleType = user.VehicleType ?? "",
-                    VehiclePlate = user.LicensePlate ?? "",
-                    VerificationStatus = "Pending"
+                    Gender = "Male"
                 };
-
-                db.DriverProfiles.Add(profile);
-                await db.SaveChangesAsync();
-
                 db.DriverProfiles.Add(profile);
                 await db.SaveChangesAsync();
             }

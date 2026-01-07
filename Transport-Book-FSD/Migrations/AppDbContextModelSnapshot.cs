@@ -301,9 +301,6 @@ namespace TransportBookFSD.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("InterviewDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<bool>("IsSuspended")
                         .HasColumnType("bit");
 
