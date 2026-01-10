@@ -101,26 +101,22 @@ else
         await LoadOutstanding();
     }
 
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
+    }
+
     private async Task LoadOutstanding()
     {
         isLoading = true;
         msg = null;
         items.Clear();
 
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        var user = await userManager.GetUserAsync(authState.User);
-
+        var user = await GetCurrentUser();
         if (user == null)
         {
             msg = "Unable to identify passenger. Please login again.";
-            isLoading = false;
-            return;
-        }
-
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-        if (passenger == null)
-        {
-            msg = "Passenger record not found.";
             isLoading = false;
             return;
         }
@@ -129,7 +125,7 @@ else
         // 1) Completed rides that are not paid
         // 2) Cancelled accepted penalty bookings (Fare == 2) that are not paid
         var outstanding = db.Bookings
-            .Where(b => b.PassengerId == passenger.PassengerId &&
+            .Where(b => b.PassengerUserId == user.Id &&
                    !b.IsPaid &&
                    (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
             .OrderBy(b => b.PickupDateTime)
@@ -170,6 +166,13 @@ else
     {
         msg = null;
 
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Unable to identify passenger. Please login again.";
+            return;
+        }
+
         var selected = items.Where(x => x.IsSelected).Select(x => x.Booking.BookingId).ToList();
         if (selected.Count == 0)
         {
@@ -177,8 +180,20 @@ else
             return;
         }
 
-        // update DB
-        var toPay = db.Bookings.Where(b => selected.Contains(b.BookingId)).ToList();
+        // SECURITY: only pay bookings that belong to this passenger and are outstanding
+        var toPay = db.Bookings
+            .Where(b => selected.Contains(b.BookingId) &&
+                   b.PassengerUserId == user.Id &&
+                   !b.IsPaid &&
+                   (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+            .ToList();
+
+        if (toPay.Count == 0)
+        {
+            msg = "No valid outstanding items were selected.";
+            return;
+        }
+
         foreach (var b in toPay)
         {
             b.IsPaid = true;
@@ -189,7 +204,6 @@ else
 
         msg = $"Payment successful (mock). {toPay.Count} item(s) marked as paid.";
 
-        // reload list (so paid items disappear)
         await LoadOutstanding();
     }
 

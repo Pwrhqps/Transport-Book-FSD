@@ -76,6 +76,8 @@ else
 
     private async Task LoadJobs()
     {
+        msg = null; // Clear msg when loading
+
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
         if (user == null)
@@ -110,8 +112,9 @@ else
         isLoading = true;
 
         jobs = db.Bookings
-            .Where(b => b.Status == "Pending")
+            .Where(b => b.Status == "Pending" && b.DriverUserId == null)
             .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
             .ToList();
 
         isLoading = false;
@@ -127,6 +130,8 @@ else
 
     private async Task AcceptJob(int bookingId)
     {
+        msg = null;
+
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
         if (user == null)
@@ -165,8 +170,14 @@ else
             }
             else
             {
-                var untilText = driver.SuspendedUntil.HasValue ? driver.SuspendedUntil.Value.ToString("dd MMM yyyy, HH:mm") : "until further notice";
-                var reasonText = string.IsNullOrWhiteSpace(driver.SuspendedReason) ? "No reason provided." : driver.SuspendedReason;
+                var untilText = driver.SuspendedUntil.HasValue
+                    ? driver.SuspendedUntil.Value.ToString("dd MMM yyyy, HH:mm")
+                    : "until further notice";
+
+                var reasonText = string.IsNullOrWhiteSpace(driver.SuspendedReason)
+                    ? "No reason provided."
+                    : driver.SuspendedReason;
+
                 msg = $"Your driver account is suspended ({untilText}). Reason: {reasonText}";
                 return;
             }
@@ -179,9 +190,23 @@ else
             return;
         }
 
-        booking.DriverId = driver.DriverProfileId;
+        // Prevent double-accept / race condition
+        if (booking.Status != "Pending" || !string.IsNullOrWhiteSpace(booking.DriverUserId))
+        {
+            msg = "This job is no longer available.";
+            await LoadJobs();
+            return;
+        }
+
+        // Identity link only (Phase B)
+        booking.DriverUserId = user.Id;
+
         booking.Status = "Accepted";
+        booking.AcceptedAt = DateTime.Now;
 
         await db.SaveChangesAsync();
+
+        msg = "Job accepted.";
+        await LoadJobs();
     }
 }

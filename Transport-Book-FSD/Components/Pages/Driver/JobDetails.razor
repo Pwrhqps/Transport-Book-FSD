@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.JSInterop
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
 @attribute [Authorize(Roles = "Driver")]
@@ -86,6 +87,12 @@ else
     private string customerName = "-";
     private string customerPhone = "-";
 
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
@@ -96,9 +103,12 @@ else
         isLoading = true;
         msg = null;
 
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        var user = await userManager.GetUserAsync(authState.User);
+        customerName = "-";
+        customerPhone = "-";
+        job = null;
+        feedback = null;
 
+        var user = await GetCurrentUser();
         if (user == null)
         {
             msg = "Please login again.";
@@ -106,30 +116,40 @@ else
             return;
         }
 
-        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
-        if (driver == null)
+        // Phase B: ownership strictly by DriverUserId
+        job = db.Bookings.FirstOrDefault(b =>
+            b.BookingId == BookingId &&
+            b.DriverUserId == user.Id
+        );
+
+        if (job == null)
         {
-            msg = "Driver profile not found.";
             isLoading = false;
             return;
         }
 
-        job = db.Bookings.FirstOrDefault(b =>
-            b.BookingId == BookingId &&
-            b.DriverId == driver.DriverProfileId
-        );
-
-        if (job != null)
+        // Customer details: PassengerProfiles via PassengerUserId
+        if (!string.IsNullOrWhiteSpace(job.PassengerUserId))
         {
-            var passenger = db.Passengers.FirstOrDefault(p => p.PassengerId == job.PassengerId);
-            if (passenger != null)
+            var pp = db.PassengerProfiles.FirstOrDefault(p => p.UserId == job.PassengerUserId);
+            if (pp != null)
             {
-                customerName = passenger.Name;
-                customerPhone = passenger.Phone;
+                customerName = string.IsNullOrWhiteSpace(pp.FullName) ? "-" : pp.FullName;
+                customerPhone = string.IsNullOrWhiteSpace(pp.ContactNumber) ? "-" : pp.ContactNumber;
             }
-
-            feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == job.BookingId);
         }
+
+        // Optional: fallback to AspNetUsers email if profile missing
+        if (customerName == "-" && !string.IsNullOrWhiteSpace(job.PassengerUserId))
+        {
+            var passengerUser = await userManager.FindByIdAsync(job.PassengerUserId);
+            if (passengerUser != null)
+            {
+                customerName = string.IsNullOrWhiteSpace(passengerUser.Email) ? "-" : passengerUser.Email;
+            }
+        }
+
+        feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == job.BookingId);
 
         isLoading = false;
     }
@@ -153,19 +173,28 @@ else
     {
         msg = null;
 
-        if (job == null)
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Please login again.";
+            return;
+        }
+
+        // Reload from DB with ownership check (prevents tampering)
+        var b = db.Bookings.FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
+        if (b == null)
         {
             msg = "Job not found.";
             return;
         }
 
-        if (job.Status != "Accepted")
+        if (b.Status != "Accepted")
         {
             msg = "Only accepted jobs can be completed.";
             return;
         }
 
-        job.Status = "Completed";
+        b.Status = "Completed";
         await db.SaveChangesAsync();
 
         msg = "Job marked as completed.";

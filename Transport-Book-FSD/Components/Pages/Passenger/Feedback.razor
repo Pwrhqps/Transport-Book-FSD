@@ -100,7 +100,7 @@ else
     private int rating = 5;
     private string? comment;
 
-    // ✅ IMPORTANT: fully qualify model type (prevents name clash with Feedback.razor page)
+    // IMPORTANT: fully qualify model type (prevents name clash with Feedback.razor page)
     private Transport_Book_FSD.Models.Feedback? existingFeedback;
 
     protected override async Task OnInitializedAsync()
@@ -111,6 +111,12 @@ else
     private void Back()
     {
         nav.NavigateTo("/passenger/bookinghistory");
+    }
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
     }
 
     private async Task Load()
@@ -126,15 +132,8 @@ else
             return;
         }
 
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-        if (passenger == null)
-        {
-            msg = "Passenger record not found.";
-            isLoading = false;
-            return;
-        }
-
-        booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        // Ownership check uses PassengerUserId
+        booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
             isLoading = false;
@@ -144,10 +143,13 @@ else
         // only completed rides can give feedback
         isAllowed = (booking.Status == "Completed");
 
-        // load driver info (Booking.DriverId == DriverProfileId)
-        if (booking.DriverId.HasValue)
+        // load driver info via DriverUserId (Identity)
+        driverPlate = null;
+        driverName = null;
+
+        if (!string.IsNullOrWhiteSpace(booking.DriverUserId))
         {
-            var d = db.DriverProfiles.FirstOrDefault(x => x.DriverProfileId == booking.DriverId.Value);
+            var d = db.DriverProfiles.FirstOrDefault(x => x.UserId == booking.DriverUserId);
             if (d != null)
             {
                 driverPlate = d.VehiclePlate;
@@ -172,14 +174,8 @@ else
             return;
         }
 
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-        if (passenger == null)
-        {
-            msg = "Passenger record not found.";
-            return;
-        }
-
-        var b = db.Bookings.FirstOrDefault(x => x.BookingId == bookingId && x.PassengerId == passenger.PassengerId);
+        // Ownership check uses PassengerUserId
+        var b = db.Bookings.FirstOrDefault(x => x.BookingId == bookingId && x.PassengerUserId == user.Id);
         if (b == null)
         {
             msg = "Booking not found.";
@@ -200,20 +196,21 @@ else
             return;
         }
 
-        //]     (prevents Feedback page class conflict)
         var fb = new Transport_Book_FSD.Models.Feedback
         {
             BookingId = b.BookingId,
+
+            // Phase B: identity links
+            PassengerUserId = user.Id,
+            DriverUserId = b.DriverUserId,
+
             Rating = rating,
             Comment = comment,
-            CreatedAt = DateTime.Now,
-            DriverId = b.DriverId,                
-            PassengerId = passenger.PassengerId
+            CreatedAt = DateTime.Now
         };
 
         db.Feedbacks.Add(fb);
         await db.SaveChangesAsync();
-
 
         msg = "Feedback submitted!";
         await Load();
@@ -222,11 +219,5 @@ else
     private string GetStars(int rating)
     {
         return new string('⭐', rating);
-    }
-
-    private async Task<ApplicationUser?> GetCurrentUser()
-    {
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        return await userManager.GetUserAsync(authState.User);
     }
 }

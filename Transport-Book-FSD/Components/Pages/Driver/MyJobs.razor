@@ -89,7 +89,7 @@ else
         nav.NavigateTo("/driver/jobs");
     }
 
-    // ✅ Step 3: new button action
+    // new button action
     private void GoCompletedJobs()
     {
         nav.NavigateTo("/driver/completedjobs");
@@ -110,6 +110,7 @@ else
             return;
         }
 
+        // Optional: keep profile check (ensures driver has a profile)
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -118,9 +119,9 @@ else
             return;
         }
 
-        // ✅ Step 2: only show ACTIVE jobs here (Accepted)
+        // Only show ACTIVE jobs here (Accepted)
         jobs = db.Bookings
-            .Where(b => b.DriverId == driver.DriverProfileId && b.Status == "Accepted")
+            .Where(b => b.DriverUserId == user.Id && b.Status == "Accepted")
             .OrderBy(b => b.PickupDateTime)
             .ThenBy(b => b.BookingId)
             .ToList();

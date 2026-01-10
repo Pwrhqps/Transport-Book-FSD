@@ -100,6 +100,7 @@ else
             return;
         }
 
+        // Optional: keep profile check (ensures driver has a profile)
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -108,13 +109,19 @@ else
             return;
         }
 
-        // show feedback linked to the driver's bookings (works even if Feedback.DriverId is null)
+        // Phase B: Feedback linked only via Booking.DriverUserId (Identity)
         items = (
             from f in db.Feedbacks
             join b in db.Bookings on f.BookingId equals b.BookingId
-            join p in db.Passengers on b.PassengerId equals p.PassengerId into pp
-            from p in pp.DefaultIfEmpty()
-            where b.DriverId == driver.DriverProfileId
+
+            join pp in db.PassengerProfiles on b.PassengerUserId equals pp.UserId into pps
+            from pp in pps.DefaultIfEmpty()
+
+            join u in db.Users on b.PassengerUserId equals u.Id into us
+            from u in us.DefaultIfEmpty()
+
+            where b.DriverUserId == user.Id
+
             orderby f.CreatedAt descending, f.FeedbackId descending
             select new FeedbackRow
             {
@@ -123,7 +130,12 @@ else
                 Pickup = b.PickupLocation,
                 Dropoff = b.DropoffLocation,
                 PickupTime = b.PickupDateTime,
-                PassengerName = p != null ? p.Name : null,
+
+                // Prefer PassengerProfiles name; fallback to Identity email
+                PassengerName =
+                    (pp != null && !string.IsNullOrWhiteSpace(pp.FullName)) ? pp.FullName :
+                    (u != null ? u.Email : null),
+
                 Rating = f.Rating,
                 Comment = f.Comment,
                 CreatedAt = f.CreatedAt
@@ -141,7 +153,6 @@ else
     private void ViewJob(int bookingId)
     {
         nav.NavigateTo($"/driver/feedback/{bookingId}");
-
     }
 
     private string GetStars(int rating)

@@ -6,8 +6,14 @@ namespace Transport_Book_FSD.Models
     {
         public int BookingId { get; set; }
 
-        public int PassengerId { get; set; }
+        // ===== NEW (Identity-based) =====
+        [Required, StringLength(450)]
+        public string PassengerUserId { get; set; } = string.Empty;
 
+        [StringLength(450)]
+        public string? DriverUserId { get; set; }
+
+        // ===== Booking details =====
         [Required, StringLength(120)]
         public string PickupLocation { get; set; } = string.Empty;
 
@@ -21,13 +27,9 @@ namespace Transport_Book_FSD.Models
 
         public decimal Fare { get; set; }
 
-        public int? DriverId { get; set; }     // assigned driver
-       
         public DateTime? AcceptedAt { get; set; }
 
         public bool IsPaid { get; set; }
-        
         public DateTime? PaidAt { get; set; }
-
     }
 }

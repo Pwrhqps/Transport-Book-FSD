@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Transport_Book_FSD.Data;
 
@@ -11,9 +12,11 @@ using Transport_Book_FSD.Data;
 namespace TransportBookFSD.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260110084221_PhaseB_AddFeedbackUserIds")]
+    partial class PhaseB_AddFeedbackUserIds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -237,6 +240,9 @@ namespace TransportBookFSD.Migrations
                     b.Property<DateTime?>("AcceptedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("DriverId")
+                        .HasColumnType("int");
+
                     b.Property<string>("DriverUserId")
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
@@ -254,6 +260,9 @@ namespace TransportBookFSD.Migrations
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("PassengerId")
+                        .HasColumnType("int");
 
                     b.Property<string>("PassengerUserId")
                         .IsRequired()
@@ -412,6 +421,33 @@ namespace TransportBookFSD.Migrations
                     b.HasKey("FeedbackId");
 
                     b.ToTable("Feedbacks");
+                });
+
+            modelBuilder.Entity("Transport_Book_FSD.Models.Passenger", b =>
+                {
+                    b.Property<int>("PassengerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PassengerId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("PassengerId");
+
+                    b.ToTable("Passengers");
                 });
 
             modelBuilder.Entity("Transport_Book_FSD.Models.PassengerProfile", b =>

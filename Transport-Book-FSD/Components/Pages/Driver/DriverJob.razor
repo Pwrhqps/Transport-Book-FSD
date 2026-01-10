@@ -18,9 +18,10 @@
         color: #f5c518;
         margin-right: 2px;
     }
-    .star.empty {
-        color: #ccc;
-    }
+
+        .star.empty {
+            color: #ccc;
+        }
 </style>
 
 <h3>Feedback</h3>
@@ -84,7 +85,7 @@ else
                     }
                 </div>
 
-                <div class="mb-2"><b>Comment:</b> @feedback.Comment</div>
+                <div class="mb-2"><b>Comment:</b> @(string.IsNullOrWhiteSpace(feedback.Comment) ? "-" : feedback.Comment)</div>
                 <div class="mb-2"><b>Submitted At:</b> @feedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
             }
 
@@ -107,6 +108,12 @@ else
     private string customerName = "-";
     private string customerPhone = "-";
 
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
@@ -117,9 +124,12 @@ else
         isLoading = true;
         msg = null;
 
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        var user = await userManager.GetUserAsync(authState.User);
+        customerName = "-";
+        customerPhone = "-";
+        booking = null;
+        feedback = null;
 
+        var user = await GetCurrentUser();
         if (user == null)
         {
             msg = "Please login again.";
@@ -127,30 +137,40 @@ else
             return;
         }
 
-        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
-        if (driver == null)
+        // Phase B: booking ownership strictly by DriverUserId
+        booking = db.Bookings.FirstOrDefault(b =>
+            b.BookingId == BookingId &&
+            b.DriverUserId == user.Id
+        );
+
+        if (booking == null)
         {
-            msg = "Driver profile not found.";
             isLoading = false;
             return;
         }
 
-        booking = db.Bookings.FirstOrDefault(b =>
-            b.BookingId == BookingId &&
-            b.DriverId == driver.DriverProfileId
-        );
-
-        if (booking != null)
+        // Customer details: PassengerProfiles via PassengerUserId
+        if (!string.IsNullOrWhiteSpace(booking.PassengerUserId))
         {
-            var passenger = db.Passengers.FirstOrDefault(p => p.PassengerId == booking.PassengerId);
-            if (passenger != null)
+            var pp = db.PassengerProfiles.FirstOrDefault(p => p.UserId == booking.PassengerUserId);
+            if (pp != null)
             {
-                customerName = passenger.Name;
-                customerPhone = passenger.Phone;
+                customerName = string.IsNullOrWhiteSpace(pp.FullName) ? "-" : pp.FullName;
+                customerPhone = string.IsNullOrWhiteSpace(pp.ContactNumber) ? "-" : pp.ContactNumber;
             }
-
-            feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
         }
+
+        // Optional: fallback to AspNetUsers email if profile missing
+        if (customerName == "-" && !string.IsNullOrWhiteSpace(booking.PassengerUserId))
+        {
+            var passengerUser = await userManager.FindByIdAsync(booking.PassengerUserId);
+            if (passengerUser != null)
+            {
+                customerName = string.IsNullOrWhiteSpace(passengerUser.Email) ? "-" : passengerUser.Email;
+            }
+        }
+
+        feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
 
         isLoading = false;
     }

@@ -127,9 +127,7 @@ else
     {
         isLoading = true;
 
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        var user = await userManager.GetUserAsync(authState.User);
-
+        var user = await GetCurrentUser();
         if (user == null)
         {
             bookings = new List<Booking>();
@@ -137,17 +135,8 @@ else
             return;
         }
 
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-
-        if (passenger == null)
-        {
-            bookings = new List<Booking>();
-            isLoading = false;
-            return;
-        }
-
         bookings = db.Bookings
-            .Where(b => b.PassengerId == passenger.PassengerId &&
+            .Where(b => b.PassengerUserId == user.Id &&
                    !(b.IsPaid && (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m))))
             .OrderByDescending(b => b.PickupDateTime)
             .ThenByDescending(b => b.BookingId)
@@ -183,14 +172,7 @@ else
             return;
         }
 
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-        if (passenger == null)
-        {
-            msg = "Passenger record not found.";
-            return;
-        }
-
-        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
             msg = "Booking not found.";
@@ -241,14 +223,7 @@ else
             return;
         }
 
-        var passenger = db.Passengers.FirstOrDefault(p => p.UserId == user.Id);
-        if (passenger == null)
-        {
-            msg = "Passenger record not found.";
-            return;
-        }
-
-        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerId == passenger.PassengerId);
+        var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
             msg = "Booking not found.";
@@ -277,7 +252,6 @@ else
     private async Task<ApplicationUser?> GetCurrentUser()
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync();
-        var principal = authState.User;
-        return await userManager.GetUserAsync(principal);
+        return await userManager.GetUserAsync(authState.User);
     }
 }

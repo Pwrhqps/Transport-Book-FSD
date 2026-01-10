@@ -19,7 +19,7 @@
 <div class="mb-3">
     <label for="sortSelect">Sort by rating:</label>
     <select id="sortSelect" class="form-select" style="width:220px; display:inline-block; margin-left:8px;"
-            @bind="SortOrder">
+            @bind="SortOrder" @bind:after="OnSortOrderUpdated">
         <option value="desc">Highest → Lowest</option>
         <option value="asc">Lowest → Highest</option>
     </select>
@@ -63,13 +63,15 @@ else
                         {
                             <span>Active</span>
                         }
-                    </td>
-                    <td>@(string.IsNullOrWhiteSpace(d.SuspendedReason) ? "-" : d.SuspendedReason)</td>
-                    <td>
-                        @(d.SuspendedUntil.HasValue ? d.SuspendedUntil.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : (d.IsSuspended ? "Permanent" : "-"))
-                    </td>
-                    <td style="width:260px;">
-                        @{
+                </td>
+                <td>@(string.IsNullOrWhiteSpace(d.SuspendedReason) ? "-" : d.SuspendedReason)</td>
+                <td>
+                    @(d.SuspendedUntil.HasValue
+                                    ? d.SuspendedUntil.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    : (d.IsSuspended ? "Permanent" : "-"))
+            </td>
+            <td style="width:260px;">
+                @{
                             var detailsUrl = $"/staff/userdetails/{d.UserId}?from=verifydrivers";
                         }
 
@@ -78,25 +80,23 @@ else
                             View Details
                         </button>
 
-
-    <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
-            disabled="@ProcessingIds.Contains(d.DriverId)"
-            @onclick="() => OnActionClick(d)">
-        @if (ProcessingIds.Contains(d.DriverId))
-        {
-            <span>Processing...</span>
-        }
-        else if (d.IsSuspended)
-        {
-            <span>Unsuspend</span>
-        }
-        else
-        {
-            <span>Suspend</span>
-        }
-    </button>
-</td>
-
+                        <button class="btn btn-sm @(d.IsSuspended ? "btn-success" : "btn-danger")"
+                                disabled="@ProcessingIds.Contains(d.DriverProfileId)"
+                                @onclick="() => OnActionClick(d)">
+                            @if (ProcessingIds.Contains(d.DriverProfileId))
+                            {
+                                <span>Processing...</span>
+                            }
+                            else if (d.IsSuspended)
+                            {
+                                <span>Unsuspend</span>
+                            }
+                            else
+                            {
+                                <span>Suspend</span>
+                            }
+                        </button>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -155,16 +155,17 @@ else
 }
 
 @code {
-    private List<DriverRatingViewModel> Drivers = new();
+    private List<DriverRow> Drivers = new();
     private bool IsLoading = true;
     private string SortOrder = "desc"; // "desc" or "asc"
     private HashSet<int> ProcessingIds = new();
 
     // suspend modal state
     private bool ShowSuspendDialog = false;
-    private DriverRatingViewModel? SelectedDriverForDialog;
+    private DriverRow? SelectedDriverForDialog;
     private string? SuspendReason;
     private string SelectedDurationKey = "7"; // default key
+
     private readonly List<(string Key, string Label, int? Days)> DurationOptions = new()
     {
         ("1", "1 day", 1),
@@ -183,30 +184,35 @@ else
     private async Task LoadDriversAsync()
     {
         IsLoading = true;
+
         try
         {
-            // compute average rating per driver by joining Feedback -> Booking
+            // ✅ Phase B: compute average rating per driver using Booking.DriverUserId (Identity)
             var ratingsDict = await (
                 from f in db.Feedbacks
                 join b in db.Bookings on f.BookingId equals b.BookingId
-                where b.DriverId != null
-                group f by b.DriverId into g
-                select new { DriverId = g.Key!.Value, Avg = g.Average(x => x.Rating) }
-            ).ToDictionaryAsync(x => x.DriverId, x => x.Avg);
+                where !string.IsNullOrWhiteSpace(b.DriverUserId)
+                group f by b.DriverUserId into g
+                select new { DriverUserId = g.Key!, Avg = g.Average(x => x.Rating) }
+            ).ToDictionaryAsync(x => x.DriverUserId, x => x.Avg);
 
+            // DriverProfiles are identity-linked by UserId
             var drivers = await db.DriverProfiles.AsNoTracking().ToListAsync();
 
             Drivers = drivers.Select(d =>
             {
+                // default: keep whatever is stored in DriverProfile.Rating (if any)
                 double rating = d.Rating;
-                if (ratingsDict.TryGetValue(d.DriverProfileId, out var avg))
+
+                if (!string.IsNullOrWhiteSpace(d.UserId) && ratingsDict.TryGetValue(d.UserId, out var avg))
                 {
                     rating = Math.Round(avg, 2);
                 }
 
-                return new DriverRatingViewModel
+                return new DriverRow
                 {
-                    DriverId = d.DriverProfileId,
+                    DriverProfileId = d.DriverProfileId,
+                    UserId = d.UserId,
                     FullName = d.FullName,
                     Rating = rating,
                     IsSuspended = d.IsSuspended,
@@ -220,13 +226,19 @@ else
         catch (Exception ex)
         {
             await JS.InvokeVoidAsync("alert", $"Error loading drivers: {ex.Message}");
-            Drivers = new List<DriverRatingViewModel>();
+            Drivers = new List<DriverRow>();
         }
         finally
         {
             IsLoading = false;
             StateHasChanged();
         }
+    }
+
+    private Task OnSortOrderUpdated()
+    {
+        ApplySort();
+        return Task.CompletedTask;
     }
 
     private void ApplySort()
@@ -237,24 +249,16 @@ else
             Drivers = Drivers.OrderByDescending(d => d.Rating).ThenBy(d => d.FullName).ToList();
     }
 
-    private async Task OnSortChanged(ChangeEventArgs e)
-    {
-        ApplySort();
-        await Task.CompletedTask;
-    }
-
     private Task Reload() => LoadDriversAsync();
 
-    private void OnActionClick(DriverRatingViewModel d)
+    private void OnActionClick(DriverRow d)
     {
         if (d.IsSuspended)
         {
-            // unsuspend inline (confirm)
             _ = UnsuspendAsync(d);
         }
         else
         {
-            // show modal to collect reason + duration
             SelectedDriverForDialog = d;
             SuspendReason = "";
             SelectedDurationKey = "7";
@@ -262,17 +266,17 @@ else
         }
     }
 
-    private async Task UnsuspendAsync(DriverRatingViewModel driver)
+    private async Task UnsuspendAsync(DriverRow driver)
     {
         var ok = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to unsuspend {driver.FullName.Trim()}?");
         if (!ok) return;
 
-        ProcessingIds.Add(driver.DriverId);
+        ProcessingIds.Add(driver.DriverProfileId);
         StateHasChanged();
 
         try
         {
-            var entity = await db.DriverProfiles.FindAsync(driver.DriverId);
+            var entity = await db.DriverProfiles.FindAsync(driver.DriverProfileId);
             if (entity == null)
             {
                 await JS.InvokeVoidAsync("alert", "Driver record not found.");
@@ -283,7 +287,6 @@ else
             entity.SuspendedAt = null;
             entity.SuspendedUntil = null;
             entity.SuspendedReason = "";
-            // optionally clear SuspendedByUserId if you add that separate field
 
             await db.SaveChangesAsync();
 
@@ -298,7 +301,7 @@ else
         }
         finally
         {
-            ProcessingIds.Remove(driver.DriverId);
+            ProcessingIds.Remove(driver.DriverProfileId);
             StateHasChanged();
         }
     }
@@ -318,35 +321,27 @@ else
             return;
         }
 
-        ProcessingIds.Add(SelectedDriverForDialog.DriverId);
+        ProcessingIds.Add(SelectedDriverForDialog.DriverProfileId);
         StateHasChanged();
 
         try
         {
-            var entity = await db.DriverProfiles.FindAsync(SelectedDriverForDialog.DriverId);
+            var entity = await db.DriverProfiles.FindAsync(SelectedDriverForDialog.DriverProfileId);
             if (entity == null)
             {
                 await JS.InvokeVoidAsync("alert", "Driver record not found.");
                 return;
             }
 
-            // who is performing suspension
-            var authState = await authStateProvider.GetAuthenticationStateAsync();
-            var staffUser = await userManager.GetUserAsync(authState.User);
-            var staffUserId = staffUser?.Id ?? "";
-
             entity.IsSuspended = true;
             entity.SuspendedAt = DateTime.UtcNow;
             entity.SuspendedReason = SuspendReason ?? "";
+
             var days = SelectedDurationDays;
             entity.SuspendedUntil = days.HasValue ? DateTime.UtcNow.AddDays(days.Value) : null;
 
-            // if you create a separate SuspendedByUserId property, set it here:
-            // entity.SuspendedByUserId = staffUserId;
-
             await db.SaveChangesAsync();
 
-            // update the view-model item
             SelectedDriverForDialog.IsSuspended = entity.IsSuspended;
             SelectedDriverForDialog.SuspendedReason = string.IsNullOrWhiteSpace(entity.SuspendedReason) ? null : entity.SuspendedReason;
             SelectedDriverForDialog.SuspendedUntil = entity.SuspendedUntil;
@@ -359,9 +354,20 @@ else
         }
         finally
         {
-            ProcessingIds.Remove(SelectedDriverForDialog.DriverId);
+            ProcessingIds.Remove(SelectedDriverForDialog.DriverProfileId);
             CancelSuspend();
             StateHasChanged();
         }
+    }
+
+    private class DriverRow
+    {
+        public int DriverProfileId { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public double Rating { get; set; }
+        public bool IsSuspended { get; set; }
+        public string? SuspendedReason { get; set; }
+        public DateTime? SuspendedUntil { get; set; }
     }
 }
