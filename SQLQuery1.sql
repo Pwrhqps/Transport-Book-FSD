@@ -45,3 +45,17 @@ SET f.DriverId = b.DriverId,
 FROM Feedbacks f
 JOIN Bookings b ON f.BookingId = b.BookingId
 WHERE f.DriverId IS NULL;
+
+CREATE TABLE dbo.Vehicles
+(
+    VehicleId INT IDENTITY(1,1) PRIMARY KEY,
+    Make NVARCHAR(100) NOT NULL,
+    Model NVARCHAR(100) NOT NULL,
+    Year INT NULL,
+    LicensePlate NVARCHAR(50) NULL,
+    VehicleType NVARCHAR(50) NULL,
+    Colour NVARCHAR(50) NULL,
+    IsAvailable BIT NOT NULL DEFAULT(1),
+    DailyRate DECIMAL(10,2) NULL,
+    Note NVARCHAR(500) NULL
+);

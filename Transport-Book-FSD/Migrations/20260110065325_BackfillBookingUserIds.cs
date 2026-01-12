@@ -9,6 +9,19 @@ namespace TransportBookFSD.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "PassengerUserId",
+                table: "Bookings",
+                type: "nvarchar(450)",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "DriverUserId",
+                table: "Bookings",
+                type: "nvarchar(450)",
+                nullable: true);
+
             // Backfill PassengerUserId from legacy Passengers table
             migrationBuilder.Sql(@"
 UPDATE b
