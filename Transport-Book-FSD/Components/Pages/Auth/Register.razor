@@ -1,18 +1,21 @@
 ﻿@page "/auth/register"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Identity
-@using Transport_Book_FSD.Models 
 @using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager Nav
+@inject AppDbContext db
 
 <h3>Register</h3>
 
 <div class="row">
     <div class="col-md-6">
-        <EditForm Model="form" OnValidSubmit="RegisterUser" FormName="registerForm">
+        <EditForm Model="form" OnValidSubmit="RegisterUser">
             <DataAnnotationsValidator />
             <ValidationSummary />
 
@@ -32,31 +35,44 @@
 
             <div class="mb-3">
                 <label class="form-label">Email</label>
-                <InputText class="form-control" @bind-Value="form.Email" name="Email" />
+                <InputText class="form-control" @bind-Value="form.Email" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Password</label>
-                <InputText class="form-control" type="password" @bind-Value="form.Password" name="Password" />
+                <InputText class="form-control" type="password" @bind-Value="form.Password" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Confirm Password</label>
-                <InputText class="form-control" type="password" @bind-Value="form.ConfirmPassword" name="ConfirmPassword" />
+                <InputText class="form-control" type="password" @bind-Value="form.ConfirmPassword" />
             </div>
+
             @if (form.Role == "Driver")
             {
                 <div class="mb-3">
                     <label class="form-label">Phone Number</label>
-                    <InputText class="form-control" @bind-Value="form.PhoneNumber" name="PhoneNumber" />
+                    <InputText class="form-control" @bind-Value="form.PhoneNumber" />
                 </div>
+
                 <div class="mb-3">
                     <label class="form-label">Vehicle Type</label>
-                    <InputText class="form-control" @bind-Value="form.VehicleType" name="VehicleType" />
+                    <InputText class="form-control" @bind-Value="form.VehicleType" />
                 </div>
+
                 <div class="mb-3">
-                    <label class="form-label">Lincense Plate Number</label>
-                    <InputText class="form-control" @bind-Value="form.LicensePlate" name="LicensePlate" />
+                    <label class="form-label">Vehicle Model</label>
+                    <InputText class="form-control" @bind-Value="form.VehicleModel" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">License Plate Number</label>
+                    <InputText class="form-control" @bind-Value="form.LicensePlate" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">License Number</label>
+                    <InputText class="form-control" @bind-Value="form.LicenseNumber" />
                 </div>
             }
 
@@ -85,17 +101,29 @@
             return;
         }
 
+        if (form.Role == "Driver")
+        {
+            if (string.IsNullOrWhiteSpace(form.PhoneNumber) ||
+                string.IsNullOrWhiteSpace(form.VehicleType) ||
+                string.IsNullOrWhiteSpace(form.VehicleModel) ||
+                string.IsNullOrWhiteSpace(form.LicensePlate) ||
+                string.IsNullOrWhiteSpace(form.LicenseNumber))
+            {
+                errorMsg = "Please fill in Phone Number, Vehicle Type, Vehicle Model, License Plate Number, and License Number.";
+                return;
+            }
+        }
+
         var user = new ApplicationUser
         {
             UserName = form.Email,
             Email = form.Email,
-            PhoneNumber = form.PhoneNumber, 
-            VehicleType = form.VehicleType, 
-            LicensePlate = form.LicensePlate 
+            PhoneNumber = form.PhoneNumber,
+            VehicleType = form.VehicleType,
+            LicensePlate = form.LicensePlate
         };
 
         var result = await UserManager.CreateAsync(user, form.Password);
-
         if (!result.Succeeded)
         {
             errorMsg = string.Join(" | ", result.Errors.Select(e => e.Description));
@@ -103,35 +131,54 @@
         }
 
         var roleResult = await UserManager.AddToRoleAsync(user, form.Role);
-
         if (!roleResult.Succeeded)
         {
             errorMsg = string.Join(" | ", roleResult.Errors.Select(e => e.Description));
             return;
         }
 
-        Nav.NavigateTo("/auth/login", true);
+        // Create DriverProfile so Staff page can see details
+        if (form.Role == "Driver")
+        {
+            var exists = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+            if (exists == null)
+            {
+                db.DriverProfiles.Add(new DriverProfile
+                {
+                    UserId = user.Id,
+                    FullName = user.Email ?? "Driver",
+                    ContactNumber = form.PhoneNumber ?? "",
+                    Gender = "Male",
+                    VehicleType = form.VehicleType ?? "",
+                    VehicleModel = form.VehicleModel ?? "",
+                    VehiclePlate = form.LicensePlate ?? "",
+                    LicenseNumber = form.LicenseNumber ?? ""
+                });
 
+                await db.SaveChangesAsync();
+            }
+        }
+
+        Nav.NavigateTo("/auth/login", true);
     }
 
     private class RegisterForm
     {
-        [System.ComponentModel.DataAnnotations.Required]
+        [Required]
         public string Email { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required]
+        [Required]
         public string Password { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required]
+        [Required]
         public string ConfirmPassword { get; set; } = "";
 
         public string Role { get; set; } = "Passenger";
 
-
         public string? PhoneNumber { get; set; }
-
         public string? VehicleType { get; set; }
-
+        public string? VehicleModel { get; set; }
         public string? LicensePlate { get; set; }
+        public string? LicenseNumber { get; set; }
     }
 }

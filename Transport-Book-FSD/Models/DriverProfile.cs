@@ -40,7 +40,7 @@ namespace Transport_Book_FSD.Models
         // Read-only later (updated by system)
         public int TotalCompletedTrips { get; set; }
         public decimal TotalEarnings { get; set; }
-        public double Rating { get; set; } = 5.0;
+        public double Rating { get; set; } = 0.0;
         public bool IsSuspended { get; set; } = false;
         public string SuspendedReason { get; set; } = "";
         public DateTime? SuspendedUntil { get; set; }
