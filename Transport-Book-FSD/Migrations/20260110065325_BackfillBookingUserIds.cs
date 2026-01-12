@@ -9,7 +9,21 @@ namespace TransportBookFSD.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Backfill PassengerUserId from legacy Passengers table
+            // 1) Ensure columns exist BEFORE any SQL references them
+            migrationBuilder.AddColumn<string>(
+                name: "PassengerUserId",
+                table: "Bookings",
+                type: "nvarchar(450)",
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "DriverUserId",
+                table: "Bookings",
+                type: "nvarchar(450)",
+                nullable: true);
+
+            // 2) Backfill PassengerUserId from legacy Passengers table
             migrationBuilder.Sql(@"
 UPDATE b
 SET b.PassengerUserId = p.UserId
@@ -19,7 +33,7 @@ WHERE (b.PassengerUserId IS NULL OR b.PassengerUserId = '')
   AND p.UserId IS NOT NULL;
 ");
 
-            // Backfill DriverUserId from DriverProfiles (Booking.DriverId stores DriverProfileId)
+            // 3) Backfill DriverUserId from DriverProfiles (Booking.DriverId stores DriverProfileId)
             migrationBuilder.Sql(@"
 UPDATE b
 SET b.DriverUserId = d.UserId
@@ -30,45 +44,14 @@ WHERE b.DriverId IS NOT NULL
   AND d.UserId IS NOT NULL;
 ");
 
-            // Make sure PassengerUserId is never NULL (keep app safe)
+            // 4) Make sure PassengerUserId is never NULL (keep app safe)
             migrationBuilder.Sql(@"
 UPDATE Bookings
 SET PassengerUserId = ''
 WHERE PassengerUserId IS NULL;
 ");
 
-            // Fix column types if they are nvarchar(max) (cannot be indexed)
-            migrationBuilder.Sql(@"
-IF EXISTS (
-    SELECT 1
-    FROM sys.columns c
-    JOIN sys.types t ON c.user_type_id = t.user_type_id
-    WHERE c.object_id = OBJECT_ID('Bookings')
-      AND c.name = 'PassengerUserId'
-      AND t.name IN ('nvarchar', 'varchar')
-      AND c.max_length = -1
-)
-BEGIN
-    ALTER TABLE Bookings ALTER COLUMN PassengerUserId nvarchar(450) NOT NULL;
-END
-");
-
-            migrationBuilder.Sql(@"
-IF EXISTS (
-    SELECT 1
-    FROM sys.columns c
-    JOIN sys.types t ON c.user_type_id = t.user_type_id
-    WHERE c.object_id = OBJECT_ID('Bookings')
-      AND c.name = 'DriverUserId'
-      AND t.name IN ('nvarchar', 'varchar')
-      AND c.max_length = -1
-)
-BEGIN
-    ALTER TABLE Bookings ALTER COLUMN DriverUserId nvarchar(450) NULL;
-END
-");
-
-            // Create indexes if they don't already exist
+            // 5) Create indexes if they don't already exist
             migrationBuilder.Sql(@"
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bookings_PassengerUserId' AND object_id = OBJECT_ID('Bookings'))
     CREATE INDEX IX_Bookings_PassengerUserId ON Bookings(PassengerUserId);
@@ -83,6 +66,17 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bookings_DriverUserId'
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Drop indexes first (safe)
+            migrationBuilder.Sql(@"
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bookings_PassengerUserId' AND object_id = OBJECT_ID('Bookings'))
+    DROP INDEX IX_Bookings_PassengerUserId ON Bookings;
+");
+
+            migrationBuilder.Sql(@"
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Bookings_DriverUserId' AND object_id = OBJECT_ID('Bookings'))
+    DROP INDEX IX_Bookings_DriverUserId ON Bookings;
+");
+
             migrationBuilder.DropColumn(
                 name: "DriverUserId",
                 table: "Bookings");
