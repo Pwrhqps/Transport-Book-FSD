@@ -21,8 +21,17 @@ namespace Transport_Book_FSD.Data
         public DbSet<Staff> Staffs { get; set; }
 
         public DbSet<Vehicle> Vehicles { get; set; }
-
         public DbSet<VehicleRental> VehicleRentals { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+
+            builder.Entity<Booking>()
+                .HasOne(b => b.Payment)
+                .WithMany(p => p.Bookings)
+                .HasForeignKey(b => b.PaymentId)
+                .OnDelete(DeleteBehavior.SetNull);
+        }
     }
 }

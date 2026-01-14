@@ -63,7 +63,6 @@
     </div>
 }
 
-
 @if (!string.IsNullOrEmpty(msg))
 {
     <div class="alert alert-info">@msg</div>
@@ -223,6 +222,8 @@ else
     {
         isLoading = true;
         msg = null;
+
+        // reset receipt
         lastReceipt = null;
         lastPaidBookings.Clear();
         items.Clear();
@@ -240,8 +241,8 @@ else
         // 2) Cancelled accepted penalty bookings (Fare == 2) that are not paid
         var outstanding = db.Bookings
             .Where(b => b.PassengerUserId == user.Id &&
-                   !b.IsPaid &&
-                   (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+                        !b.IsPaid &&
+                        (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
             .OrderBy(b => b.PickupDateTime)
             .ThenBy(b => b.BookingId)
             .ToList();
@@ -389,43 +390,31 @@ else
 
             var total = toPay.Sum(b => b.Fare);
 
-            foreach (var b in toPay)
+            // Create ONE payment transaction
+            var payment = new PaymentModel
             {
-                var p = new PaymentModel
-                {
-                    BookingId = b.BookingId,
-                    Amount = b.Fare,
-                    Method = paymentMethod,
-                    Status = PaymentModel.PaymentStatuses.Processing,
+                PassengerUserId = user.Id,
+                Method = paymentMethod,
+                Status = PaymentModel.PaymentStatuses.Processing,
+                ReferenceNo = reference,
+                TotalAmount = total,
+                ItemCount = toPay.Count,
+                CreatedAt = now,
+                CardLast4 = (paymentMethod == "Card" ? cardLast4 : null)
+            };
 
-                    ReferenceNo = reference,
-                    TotalAmount = total,
-                    CreatedAt = now,
-                    CardLast4 = (paymentMethod == "Card" ? cardLast4 : null),
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync(); // generates PaymentId
 
-                    PaymentDate = now
-                };
+            await Task.Delay(900); // mock processing
 
-                db.Payments.Add(p);
-            }
-
-            await db.SaveChangesAsync();
-
-            await Task.Delay(900);
-
+            // Mock decline
             if (IsMockDeclined(out var declineReason))
             {
                 var failedAt = DateTime.Now;
 
-                var paymentRowsFail = await db.Payments
-                    .Where(p => p.ReferenceNo == reference)
-                    .ToListAsync();
-
-                foreach (var p in paymentRowsFail)
-                {
-                    p.Status = PaymentModel.PaymentStatuses.Failed;
-                    p.CompletedAt = failedAt;
-                }
+                payment.Status = PaymentModel.PaymentStatuses.Failed;
+                payment.CompletedAt = failedAt;
 
                 await db.SaveChangesAsync();
                 await tx.CommitAsync();
@@ -435,22 +424,17 @@ else
                 return;
             }
 
+            // Success
             var completedAt = DateTime.Now;
 
-            var paymentRows = await db.Payments
-                .Where(p => p.ReferenceNo == reference)
-                .ToListAsync();
-
-            foreach (var p in paymentRows)
-            {
-                p.Status = PaymentModel.PaymentStatuses.Succeeded;
-                p.CompletedAt = completedAt;
-            }
+            payment.Status = PaymentModel.PaymentStatuses.Succeeded;
+            payment.CompletedAt = completedAt;
 
             foreach (var b in toPay)
             {
                 b.IsPaid = true;
                 b.PaidAt = completedAt;
+                b.PaymentId = payment.PaymentId; // link bookings to this transaction
             }
 
             await db.SaveChangesAsync();
@@ -458,18 +442,18 @@ else
 
             lastReceipt = new ReceiptView
             {
-                ReferenceNo = reference,
-                Method = paymentMethod,
-                CardLast4 = (paymentMethod == "Card" ? cardLast4 : null),
-                TotalAmount = total,
-                CompletedAt = completedAt,
-                ItemCount = toPay.Count
+                ReferenceNo = payment.ReferenceNo,
+                Method = payment.Method,
+                CardLast4 = payment.CardLast4,
+                TotalAmount = payment.TotalAmount,
+                CompletedAt = payment.CompletedAt,
+                ItemCount = payment.ItemCount
             };
 
             lastPaidBookings = toPay
-            .OrderBy(b => b.PickupDateTime)
-            .ThenBy(b => b.BookingId)
-            .ToList();
+                .OrderBy(b => b.PickupDateTime)
+                .ThenBy(b => b.BookingId)
+                .ToList();
 
             msg = paymentMethod switch
             {
@@ -490,7 +474,6 @@ else
             isPaying = false;
         }
     }
-
 
     private void Back()
     {
