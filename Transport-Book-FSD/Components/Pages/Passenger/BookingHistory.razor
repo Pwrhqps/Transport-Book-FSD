@@ -57,93 +57,25 @@ else
                     <td>@b.Fare.ToString("0.00")</td>
                     <td>@(b.PaidAt.HasValue? b.PaidAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
                     <td>
-                        <button class="btn btn-outline-dark btn-sm"
-                                @onclick="() => OpenFeedback(b.BookingId)">
-                            Feedback
-                        </button>
+                        @if (feedbackBookingIds.Contains(b.BookingId))
+                        {
+                            <button class="btn btn-success btn-sm"
+                                    @onclick="() => GoFeedback(b.BookingId)">
+                                Completed
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary btn-sm"
+                                    @onclick="() => GoFeedback(b.BookingId)">
+                                Give Feedback
+                            </button>
+                        }
                     </td>
                 </tr>
             }
         </tbody>
     </table>
-
-    @if (selectedBooking != null)
-    {
-        <div class="card shadow-sm mt-4">
-            <div class="card-body">
-                <h5 class="mb-3">Feedback for Booking #@selectedBooking.BookingId</h5>
-
-                <div class="mb-3">
-                    <div><b>Pickup:</b> @selectedBooking.PickupLocation</div>
-                    <div><b>Dropoff:</b> @selectedBooking.DropoffLocation</div>
-                    <div><b>Pickup Time:</b> @selectedBooking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
-                    <div><b>Status:</b> @selectedBooking.Status</div>
-                    <div><b>Fare:</b> @selectedBooking.Fare.ToString("0.00")</div>
-                </div>
-
-                <div class="mb-3">
-                    <div><b>Driver Plate:</b> @(driverPlate ?? "-")</div>
-                    <div><b>Driver Name:</b> @(driverName ?? "-")</div>
-                </div>
-
-                @if (!isAllowed)
-                {
-                    <div class="alert alert-warning">
-                        Feedback is only available for completed rides.
-                    </div>
-                }
-                else if (existingFeedback != null)
-                {
-                    <div class="alert alert-success">
-                        You already submitted feedback for this ride.
-                    </div>
-
-                    <div class="mb-2">
-                        <b>Your Rating:</b> @existingFeedback.Rating @GetStars(existingFeedback.Rating)
-                    </div>
-                    <div class="mb-3">
-                        <b>Your Comment:</b>
-                        @(string.IsNullOrEmpty(existingFeedback.Comment) ? "-" : existingFeedback.Comment)
-                    </div>
-                    <div class="text-muted">
-                        <b>Submitted:</b>
-                        @existingFeedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")
-                    </div>
-
-                    <div class="d-flex justify-content-end mt-3">
-                        <button class="btn btn-outline-secondary" @onclick="CloseFeedback">
-                            Close
-                        </button>
-                    </div>
-                }
-                else
-                {
-                    <div class="mb-3" style="max-width: 450px;">
-                        <label class="form-label"><b>Rating (1 to 5)</b></label>
-                        <select class="form-select" @bind="rating">
-                            <option value="5">5⭐⭐⭐⭐⭐ - Excellent</option>
-                            <option value="4">4⭐⭐⭐⭐ - Good</option>
-                            <option value="3">3⭐⭐⭐ - Okay</option>
-                            <option value="2">2⭐⭐ - Bad</option>
-                            <option value="1">1⭐ - Terrible</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3" style="max-width: 600px;">
-                        <label class="form-label"><b>Comments (optional)</b></label>
-                        <textarea class="form-control" rows="4" @bind="comment"></textarea>
-                    </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-dark" @onclick="Submit">Submit</button>
-                        <button class="btn btn-outline-secondary" @onclick="CloseFeedback">
-                            Close
-                        </button>
-                    </div>
-                }
-            </div>
-        </div>
-    }
 }
 
 @code {
@@ -152,21 +84,16 @@ else
 
     private List<Booking> history = new();
 
-    private Booking? selectedBooking;
-
-    private string? driverPlate;
-    private string? driverName;
-
-    private bool isAllowed;
-
-    private int rating = 5;
-    private string? comment;
-
-    private Transport_Book_FSD.Models.Feedback? existingFeedback;
+    private HashSet<int> feedbackBookingIds = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadHistory();
+    }
+
+    private void GoFeedback(int bookingId)
+    {
+        nav.NavigateTo($"/passenger/feedback/{bookingId}");
     }
 
     private async Task<ApplicationUser?> GetCurrentUser()
@@ -193,99 +120,14 @@ else
             .OrderByDescending(b => b.PickupDateTime)
             .ToListAsync();
 
+        var ids = await db.Feedbacks
+    .Where(f => history.Select(h => h.BookingId).Contains(f.BookingId))
+    .Select(f => f.BookingId)
+    .ToListAsync();
+
+        feedbackBookingIds = ids.ToHashSet();
+
+
         isLoading = false;
-    }
-
-    private async Task OpenFeedback(int bookingId)
-    {
-        msg = null;
-        existingFeedback = null;
-        rating = 5;
-        comment = null;
-        driverPlate = null;
-        driverName = null;
-
-        var user = await GetCurrentUser();
-        if (user == null)
-        {
-            msg = "Please login again.";
-            return;
-        }
-
-        selectedBooking = await db.Bookings
-            .FirstOrDefaultAsync(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
-
-        if (selectedBooking == null)
-        {
-            msg = "Booking not found.";
-            return;
-        }
-
-        isAllowed = selectedBooking.Status == "Completed";
-
-        if (!string.IsNullOrWhiteSpace(selectedBooking.DriverUserId))
-        {
-            var d = await db.DriverProfiles
-                .FirstOrDefaultAsync(x => x.UserId == selectedBooking.DriverUserId);
-
-            if (d != null)
-            {
-                driverPlate = d.VehiclePlate;
-                driverName = d.FullName;
-            }
-        }
-
-        existingFeedback = await db.Feedbacks
-            .FirstOrDefaultAsync(f => f.BookingId == selectedBooking.BookingId);
-    }
-
-    private void CloseFeedback()
-    {
-        selectedBooking = null;
-        existingFeedback = null;
-        msg = null;
-    }
-
-    private async Task Submit()
-    {
-        msg = null;
-
-        var user = await GetCurrentUser();
-        if (user == null || selectedBooking == null)
-        {
-            msg = "Please login again.";
-            return;
-        }
-
-        var exists = await db.Feedbacks
-            .FirstOrDefaultAsync(f => f.BookingId == selectedBooking.BookingId);
-
-        if (exists != null)
-        {
-            existingFeedback = exists;
-            msg = "You already submitted feedback.";
-            return;
-        }
-
-        var fb = new Transport_Book_FSD.Models.Feedback
-        {
-            BookingId = selectedBooking.BookingId,
-            PassengerUserId = user.Id,
-            DriverUserId = selectedBooking.DriverUserId,
-            Rating = rating,
-            Comment = comment,
-            CreatedAt = DateTime.Now
-        };
-
-        db.Feedbacks.Add(fb);
-        await db.SaveChangesAsync();
-
-        msg = "Feedback submitted!";
-        await OpenFeedback(selectedBooking.BookingId);
-    }
-
-    private string GetStars(int rating)
-    {
-        return new string('⭐', rating);
     }
 }

@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
 @attribute [Authorize(Roles = "Passenger")]
@@ -31,57 +32,93 @@ else if (booking == null)
 }
 else
 {
-    <div class="mb-3">
-        <div><b>Pickup:</b> @booking.PickupLocation</div>
-        <div><b>Dropoff:</b> @booking.DropoffLocation</div>
-        <div><b>Pickup Time:</b> @booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
-        <div><b>Status:</b> @booking.Status</div>
-        <div><b>Fare:</b> @booking.Fare.ToString("0.00")</div>
+    <!-- ✅ Receipt -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Receipt</h5>
+                <span class="text-muted">@receiptRef</span>
+            </div>
+
+            <hr />
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div><b>Pickup:</b> @booking.PickupLocation</div>
+                    <div><b>Dropoff:</b> @booking.DropoffLocation</div>
+                    <div><b>Pickup Time:</b> @booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</div>
+                    <div><b>Status:</b> @booking.Status</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div><b>Fare:</b> @booking.Fare.ToString("0.00")</div>
+                    <div><b>Paid At:</b> @(booking.PaidAt.HasValue? booking.PaidAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</div>
+                    <div><b>Payment Status:</b> @(booking.PaidAt.HasValue ? "Paid" : "Unpaid")</div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="mb-3">
-        <div><b>Driver Plate:</b> @(driverPlate ?? "-")</div>
-        <div><b>Driver Name:</b> @(driverName ?? "-")</div>
+    <!-- ✅ Driver -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h6 class="mb-3">Driver</h6>
+            <div><b>Driver Plate:</b> @(driverPlate ?? "-")</div>
+            <div><b>Driver Name:</b> @(driverName ?? "-")</div>
+        </div>
     </div>
 
-    @if (!isAllowed)
-    {
-        <div class="alert alert-warning">
-            Feedback is only available for completed rides (not cancellation penalties).
-        </div>
-    }
-    else if (existingFeedback != null)
-    {
-        <div class="alert alert-success">
-            You already submitted feedback for this ride.
-        </div>
+    <!-- ✅ Feedback -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h6 class="mb-3">Feedback</h6>
 
-        <div class="mb-2">
-            <b>Your Rating:</b> @existingFeedback.Rating @GetStars(existingFeedback.Rating)
-        </div>
-        <div class="mb-3"><b>Your Comment:</b> @(string.IsNullOrEmpty(existingFeedback.Comment) ? "-" : existingFeedback.Comment)</div>
-        <div class="text-muted"><b>Submitted:</b> @existingFeedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
-    }
-    else
-    {
-        <div class="mb-3" style="max-width: 450px;">
-            <label class="form-label"><b>Rating (1 to 5)</b></label>
-            <select class="form-select" @bind="rating">
-                <option value="5">5⭐⭐⭐⭐⭐ - Excellent</option>
-                <option value="4">4⭐⭐⭐⭐ - Good</option>
-                <option value="3">3⭐⭐⭐ - Okay</option>
-                <option value="2">2⭐⭐ - Bad</option>
-                <option value="1">1⭐ - Terrible</option>
-            </select>
-        </div>
+            @if (!isAllowed)
+            {
+                <div class="alert alert-warning mb-0">
+                    Feedback is only available for completed rides.
+                </div>
+            }
+            else if (existingFeedback != null)
+            {
+                <div class="alert alert-success">
+                    You already submitted feedback for this ride.
+                </div>
 
-        <div class="mb-3" style="max-width: 600px;">
-            <label class="form-label"><b>Comments (optional)</b></label>
-            <textarea class="form-control" rows="4" @bind="comment"></textarea>
-        </div>
+                <div class="mb-2">
+                    <b>Your Rating:</b> @existingFeedback.Rating @GetStars(existingFeedback.Rating)
+                </div>
+                <div class="mb-3">
+                    <b>Your Comment:</b>
+                    @(string.IsNullOrEmpty(existingFeedback.Comment) ? "-" : existingFeedback.Comment)
+                </div>
+                <div class="text-muted">
+                    <b>Submitted:</b>
+                    @existingFeedback.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                </div>
+            }
+            else
+            {
+                <div class="mb-3" style="max-width: 450px;">
+                    <label class="form-label"><b>Rating (1 to 5)</b></label>
+                    <select class="form-select" @bind="rating">
+                        <option value="5">5⭐⭐⭐⭐⭐ - Excellent</option>
+                        <option value="4">4⭐⭐⭐⭐ - Good</option>
+                        <option value="3">3⭐⭐⭐ - Okay</option>
+                        <option value="2">2⭐⭐ - Bad</option>
+                        <option value="1">1⭐ - Terrible</option>
+                    </select>
+                </div>
 
-        <button class="btn btn-dark" @onclick="Submit">Submit</button>
-    }
+                <div class="mb-3" style="max-width: 600px;">
+                    <label class="form-label"><b>Comments (optional)</b></label>
+                    <textarea class="form-control" rows="4" @bind="comment"></textarea>
+                </div>
+
+                <button class="btn btn-dark" @onclick="Submit">Submit</button>
+            }
+        </div>
+    </div>
 }
 
 @code {
@@ -100,7 +137,8 @@ else
     private int rating = 5;
     private string? comment;
 
-    // IMPORTANT: fully qualify model type (prevents name clash with Feedback.razor page)
+    private string receiptRef = string.Empty;
+
     private Transport_Book_FSD.Models.Feedback? existingFeedback;
 
     protected override async Task OnInitializedAsync()
@@ -132,7 +170,6 @@ else
             return;
         }
 
-        // Ownership check uses PassengerUserId
         booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
@@ -140,12 +177,10 @@ else
             return;
         }
 
-        // only completed rides can give feedback
-        isAllowed = (booking.Status == "Completed");
+        // ✅ Generate receipt reference number
+        receiptRef = $"RCP-{booking.PickupDateTime:yyyyMMdd}-{booking.BookingId:D4}";
 
-        // load driver info via DriverUserId (Identity)
-        driverPlate = null;
-        driverName = null;
+        isAllowed = (booking.Status == "Completed");
 
         if (!string.IsNullOrWhiteSpace(booking.DriverUserId))
         {
@@ -157,7 +192,6 @@ else
             }
         }
 
-        // 1 feedback per booking
         existingFeedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
 
         isLoading = false;
@@ -168,42 +202,31 @@ else
         msg = null;
 
         var user = await GetCurrentUser();
-        if (user == null)
+        if (user == null || booking == null)
         {
             msg = "Please login again.";
             return;
         }
 
-        // Ownership check uses PassengerUserId
-        var b = db.Bookings.FirstOrDefault(x => x.BookingId == bookingId && x.PassengerUserId == user.Id);
-        if (b == null)
-        {
-            msg = "Booking not found.";
-            return;
-        }
-
-        if (b.Status != "Completed")
+        if (booking.Status != "Completed")
         {
             msg = "Feedback is only available for completed rides.";
             return;
         }
 
-        var exists = db.Feedbacks.FirstOrDefault(f => f.BookingId == b.BookingId);
+        var exists = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
         if (exists != null)
         {
-            msg = "You already submitted feedback for this ride.";
             existingFeedback = exists;
+            msg = "You already submitted feedback.";
             return;
         }
 
         var fb = new Transport_Book_FSD.Models.Feedback
         {
-            BookingId = b.BookingId,
-
-            // Phase B: identity links
+            BookingId = booking.BookingId,
             PassengerUserId = user.Id,
-            DriverUserId = b.DriverUserId,
-
+            DriverUserId = booking.DriverUserId,
             Rating = rating,
             Comment = comment,
             CreatedAt = DateTime.Now
