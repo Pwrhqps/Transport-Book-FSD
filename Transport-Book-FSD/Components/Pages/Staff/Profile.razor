@@ -1,0 +1,210 @@
+﻿@page "/staff/profile/{UserId}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Policy = "Staff2FA")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject NavigationManager nav
+
+<h3>User Profile</h3>
+
+@if (isLoading)
+{
+    <p>Loading user...</p>
+}
+else if (user == null)
+{
+    <p>User not found.</p>
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Email</div>
+                    <div>@(user.Email ?? "")</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Role</div>
+                    <div>@role</div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Name</div>
+                    <div>@displayName</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="fw-bold">Phone</div>
+                    <div>@phone</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (role == "Passenger")
+    {
+        <h5>Passenger Profile</h5>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Gender</label>
+                <input class="form-control" value="@(passengerProfile?.Gender ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Date of Birth</label>
+                <input class="form-control" value="@(passengerProfile?.DateOfBirth?.ToString("dd/MM/yyyy") ?? "")" readonly />
+            </div>
+
+            <div class="col-12">
+                <label class="form-label fw-bold">Address</label>
+                <input class="form-control" value="@(passengerProfile?.ResidentialAddress ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Emergency Contact</label>
+                <input class="form-control" value="@(passengerProfile?.EmergencyContact ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Total Completed Trips</label>
+                <input class="form-control" value="@(passengerProfile?.TotalCompletedTrips.ToString() ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Penalty Balance</label>
+                <input class="form-control" value="@(passengerProfile != null ? passengerProfile.CancellationPenaltyBalance.ToString("0.00") : "")" readonly />
+            </div>
+        </div>
+    }
+    else if (role == "Driver")
+    {
+        <h5>Driver Profile</h5>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Gender</label>
+                <input class="form-control" value="@(driverProfile?.Gender ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Date of Birth</label>
+                <input class="form-control" value="@(driverProfile?.DateOfBirth?.ToString("dd/MM/yyyy") ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Interview Date</label>
+                <input class="form-control" value="@(driverProfile?.InterviewDate?.ToString("dd/MM/yyyy") ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">License Number</label>
+                <input class="form-control" value="@(driverProfile?.LicenseNumber ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Vehicle Type</label>
+                <input class="form-control" value="@(driverProfile?.VehicleType ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Vehicle Model</label>
+                <input class="form-control" value="@(driverProfile?.VehicleModel ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-bold">Vehicle Plate</label>
+                <input class="form-control" value="@(driverProfile?.VehiclePlate ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Total Completed Trips</label>
+                <input class="form-control" value="@(driverProfile?.TotalCompletedTrips.ToString() ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Total Earnings</label>
+                <input class="form-control" value="@(driverProfile != null ? driverProfile.TotalEarnings.ToString("0.00") : "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Rating</label>
+                <input class="form-control" value="@(driverProfile != null ? driverProfile.Rating.ToString("0.0") : "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-bold">Verification Status</label>
+                <input class="form-control" value="@(GetStatusText(driverProfile?.VerificationStatus))" readonly />
+            </div>
+
+            <div class="col-12">
+                <label class="form-label fw-bold">Verification Remarks</label>
+                <input class="form-control" value="@(driverProfile?.VerificationRemarks ?? "")" readonly />
+            </div>
+        </div>
+    }
+
+    <button class="btn btn-outline-dark mt-2" @onclick="Back">Back</button>
+}
+
+@code {
+    [Parameter] public string UserId { get; set; } = "";
+
+    private bool isLoading = true;
+
+    private ApplicationUser? user;
+    private string role = "";
+    private string displayName = "";
+    private string phone = "";
+
+    private PassengerProfile? passengerProfile;
+    private DriverProfile? driverProfile;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+
+        user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId);
+        if (user == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        role = "Unknown";
+        if (await userManager.IsInRoleAsync(user, "Passenger")) role = "Passenger";
+        else if (await userManager.IsInRoleAsync(user, "Driver")) role = "Driver";
+        else if (await userManager.IsInRoleAsync(user, "Staff")) role = "Staff";
+
+        passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == UserId);
+        driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == UserId);
+
+        displayName = passengerProfile?.FullName ?? driverProfile?.FullName ?? (user.Email ?? "");
+        phone = passengerProfile?.ContactNumber ?? driverProfile?.ContactNumber ?? "";
+
+        isLoading = false;
+    }
+
+    private string GetStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Pending";
+        return status;
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/staff/manageusers");
+    }
+}
