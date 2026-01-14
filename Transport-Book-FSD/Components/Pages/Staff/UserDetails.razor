@@ -1,6 +1,7 @@
 ﻿@page "/staff/userdetails/{UserId}"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
@@ -10,9 +11,15 @@
 
 @inject AppDbContext db
 @inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
 @inject NavigationManager nav
 
 <h3>User Details</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
 
 @if (isLoading)
 {
@@ -81,7 +88,7 @@ else
         {
             <div class="mb-3" style="max-width:320px;">
                 <label class="form-label fw-bold">Interview Date</label>
-                <InputDate TValue="DateTime?" class="form-control" @bind-Value="interviewDate" />
+                <InputDate TValue="DateTime ?" class="form-control" @bind-Value="interviewDate" />
                 <button class="btn btn-sm btn-outline-dark mt-2" @onclick="SaveInterviewDate">Save</button>
             </div>
 
@@ -97,18 +104,82 @@ else
                     <tr><th>Total Completed Trips</th><td>@driverProfile.TotalCompletedTrips</td></tr>
                     <tr><th>Total Earnings</th><td>@driverProfile.TotalEarnings.ToString("0.00")</td></tr>
                     <tr><th>Rating</th><td>@driverProfile.Rating.ToString("0.0")</td></tr>
+                    <tr><th>Verification Status</th><td>@GetStatusText(driverProfile.VerificationStatus)</td></tr>
+                    <tr><th>Verification Remarks</th><td>@(string.IsNullOrWhiteSpace(driverProfile.VerificationRemarks) ? "-" : driverProfile.VerificationRemarks)</td></tr>
+                    <tr><th>Verified At</th><td>@(driverProfile.VerifiedAt.HasValue? driverProfile.VerifiedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td></tr>
                 </tbody>
             </table>
+
+            @if (GetStatusText(driverProfile.VerificationStatus) == "Pending")
+            {
+                <div class="card shadow-sm mt-4">
+                    <div class="card-body">
+                        <h5 class="mb-3">Verification Decision</h5>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Checklist</label>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkLicenseClear" id="chk1" />
+                                <label class="form-check-label" for="chk1">License number is clear and readable</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkPlateMatches" id="chk2" />
+                                <label class="form-check-label" for="chk2">Vehicle plate matches the submitted details</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkVehicleInfo" id="chk3" />
+                                <label class="form-check-label" for="chk3">Vehicle type and model are provided</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkContactValid" id="chk4" />
+                                <label class="form-check-label" for="chk4">Contact number is valid</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkContactValid" id="chk4" />
+                                <label class="form-check-label" for="chk4">Drivers vehicle is safe and reliable</label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="chkInfoConsistent" id="chk5" />
+                                <label class="form-check-label" for="chk5">All information is consistent (no mismatch)</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" style="max-width: 700px;">
+                            <label class="form-label fw-bold">Remarks (optional)</label>
+                            <input class="form-control" @bind="remarks"
+                                   placeholder="e.g. License unclear, please re-upload" />
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-dark" @onclick="ApproveDriver">
+                                Approve
+                            </button>
+
+                            <button class="btn btn-outline-dark" @onclick="RejectDriver">
+                                Reject
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            }
         }
     }
 
-    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+    <button class="btn btn-outline-dark mt-3" @onclick="Back">Back</button>
 }
 
 @code {
     [Parameter] public string UserId { get; set; } = "";
 
     private bool isLoading = true;
+    private string? msg;
 
     private ApplicationUser? user;
     private string role = "";
@@ -119,6 +190,21 @@ else
     private DriverProfile? driverProfile;
 
     private DateTime? interviewDate;
+
+    private string? remarks;
+
+    private bool chkLicenseClear;
+    private bool chkPlateMatches;
+    private bool chkVehicleInfo;
+    private bool chkContactValid;
+    private bool chkInfoConsistent;
+
+    private bool AllChecked =>
+        chkLicenseClear &&
+        chkPlateMatches &&
+        chkVehicleInfo &&
+        chkContactValid &&
+        chkInfoConsistent;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -134,6 +220,57 @@ else
 
         d.InterviewDate = interviewDate;
         await db.SaveChangesAsync();
+        await Load();
+    }
+
+    private async Task<string> GetStaffUserId()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var u = await userManager.GetUserAsync(authState.User);
+        return u?.Id ?? "";
+    }
+
+    private async Task ApproveDriver()
+    {
+        msg = null;
+
+        if (driverProfile == null) return;
+
+        var staffId = await GetStaffUserId();
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
+        if (d == null) return;
+
+        d.VerificationStatus = "Approved";
+        d.VerificationRemarks = (remarks ?? "").Trim();
+        d.VerifiedAt = DateTime.Now;
+        d.VerifiedByUserId = staffId;
+
+        await db.SaveChangesAsync();
+
+        msg = "Driver approved.";
+        await Load();
+    }
+
+    private async Task RejectDriver()
+    {
+        msg = null;
+
+        if (driverProfile == null) return;
+
+        var staffId = await GetStaffUserId();
+
+        var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
+        if (d == null) return;
+
+        d.VerificationStatus = "Rejected";
+        d.VerificationRemarks = (remarks ?? "").Trim();
+        d.VerifiedAt = DateTime.Now;
+        d.VerifiedByUserId = staffId;
+
+        await db.SaveChangesAsync();
+
+        msg = "Driver rejected.";
         await Load();
     }
 
@@ -161,7 +298,22 @@ else
 
         interviewDate = driverProfile?.InterviewDate;
 
+        if (driverProfile != null)
+            remarks = driverProfile.VerificationRemarks;
+
+        chkLicenseClear = false;
+        chkPlateMatches = false;
+        chkVehicleInfo = false;
+        chkContactValid = false;
+        chkInfoConsistent = false;
+
         isLoading = false;
+    }
+
+    private string GetStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Pending";
+        return status;
     }
 
     private void Back()

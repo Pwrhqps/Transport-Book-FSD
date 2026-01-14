@@ -1,8 +1,102 @@
 ﻿@page "/staff/home"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
 @attribute [Authorize(Policy = "Staff2FA")]
 
+@inject Transport_Book_FSD.Data.AppDbContext db
+@inject NavigationManager nav
 
-<h3>Staff Home</h3>
-<p>Welcome, Staff.</p>
+<h2 class="mb-1">Staff Dashboard</h2>
+<p class="text-muted mb-4">
+    Welcome back, Staff. 
+</p>
+
+@if (isLoading)
+{
+    <p>Loading dashboard data...</p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Pending Drivers</h5>
+                    <h3>@pendingDrivers</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Total Users</h5>
+                    <h3>@totalUsers</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Low Rated Drivers</h5>
+                    <h3>@lowRatedDrivers</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Feedbacks</h5>
+                    <h3>@totalFeedbacks</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title mb-3">Quick Actions</h5>
+
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-dark" @onclick='() => nav.NavigateTo("/staff/verifydrivers")'>
+                    Verify Drivers
+                </button>
+
+                <button class="btn btn-dark" @onclick='() => nav.NavigateTo("/staff/manageusers")'>
+                    Manage Users
+                </button>
+
+                <button class="btn btn-dark" @onclick='() => nav.NavigateTo("/staff/vehicles")'>
+                    Vehicle Management
+                </button>
+
+                <button class="btn btn-dark" @onclick='() => nav.NavigateTo("/staff/driverfeedbacks")'>
+                    Driver Feedbacks
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+
+    private int pendingDrivers;
+    private int totalUsers;
+    private int lowRatedDrivers;
+    private int totalFeedbacks;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Uses your real DbSets: DriverProfiles + Feedbacks
+        pendingDrivers = await db.DriverProfiles.CountAsync(d => d.VerificationStatus == "Pending");
+        totalUsers = await db.Users.CountAsync();
+        lowRatedDrivers = await db.DriverProfiles.CountAsync(d => d.Rating < 3.0);
+        totalFeedbacks = await db.Feedbacks.CountAsync();
+
+        isLoading = false;
+    }
+}

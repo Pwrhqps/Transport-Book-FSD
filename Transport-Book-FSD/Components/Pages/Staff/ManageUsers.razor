@@ -134,6 +134,7 @@ else
             string displayName = u.Email ?? "";
             string phone = "";
 
+            // Passenger profile (name/phone)
             var pp = passengerProfiles.FirstOrDefault(p => p.UserId == u.Id);
             if (pp != null)
             {
@@ -141,9 +142,16 @@ else
                 phone = pp.ContactNumber;
             }
 
+            // Driver profile (ONLY if Approved)
             var dp = driverProfiles.FirstOrDefault(d => d.UserId == u.Id);
-            if (dp != null)
+            if (role == "Driver")
             {
+                // hide drivers who are missing profile, Pending, or Rejected
+                if (dp == null) continue;
+
+                if (!string.Equals(dp.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 displayName = dp.FullName;
                 phone = dp.ContactNumber;
             }
