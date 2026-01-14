@@ -18,51 +18,6 @@
 
 <h3>Payment</h3>
 
-@if (lastReceipt != null)
-{
-    <div class="alert alert-success">
-        <div class="fw-bold">Payment Successful</div>
-        <div>Reference: <b>@lastReceipt.ReferenceNo</b></div>
-        <div>
-            Method: <b>@lastReceipt.Method</b>
-            @(string.IsNullOrWhiteSpace(lastReceipt.CardLast4) ? "" : $" (•••• {lastReceipt.CardLast4})")
-        </div>
-        <div>Total: <b>$@lastReceipt.TotalAmount.ToString("0.00")</b></div>
-        <div>Paid at: @lastReceipt.CompletedAt?.ToString("dd/MM/yyyy HH:mm")</div>
-        <div class="mt-2">Items paid: @lastReceipt.ItemCount</div>
-
-        @if (lastPaidBookings.Count > 0)
-        {
-            <hr />
-            <div class="fw-bold mb-2">Receipt Details</div>
-
-            <table class="table table-sm table-bordered mb-0 bg-white">
-                <thead>
-                    <tr>
-                        <th style="width:80px;">Booking</th>
-                        <th>Pickup</th>
-                        <th>Dropoff</th>
-                        <th style="width:160px;">Pickup Time</th>
-                        <th style="width:90px;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var b in lastPaidBookings)
-                    {
-                        <tr>
-                            <td>@b.BookingId</td>
-                            <td>@b.PickupLocation</td>
-                            <td>@b.DropoffLocation</td>
-                            <td>@b.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
-                            <td>@b.Fare.ToString("0.00")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </div>
-}
-
 @if (!string.IsNullOrEmpty(msg))
 {
     <div class="alert alert-info">@msg</div>
@@ -72,427 +27,425 @@
 {
     <p>Loading outstanding payments...</p>
 }
-else if (items.Count == 0)
-{
-    <p>No outstanding payments.</p>
-    <button class="btn btn-outline-dark" @onclick="Back">Back to My Bookings</button>
-}
 else
 {
-    <p>Select one or more items to pay.</p>
+    @if (pendingCashItems.Count > 0)
+    {
+        <div class="alert alert-warning">
+            <b>Pending Cash Payments</b><br />
+            You have cash payments waiting for driver/staff confirmation. These items cannot be paid again.
+        </div>
 
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th style="width:60px;">Pay</th>
-                <th>#</th>
-                <th>Pickup</th>
-                <th>Dropoff</th>
-                <th>Pickup Time</th>
-                <th>Status</th>
-                <th>Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            @{
-                int row = 1;
-            }
-            @foreach (var it in items)
-            {
-                <tr>
-                    <td>
-                        <input type="checkbox"
-                               checked="@it.IsSelected"
-                               @onchange="(e) => Toggle(it, e)"
-                               disabled="@isPaying" />
-                    </td>
-                    <td>@row</td>
-                    <td>@it.Booking.PickupLocation</td>
-                    <td>@it.Booking.DropoffLocation</td>
-                    <td>@it.Booking.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
-                    <td>@it.Booking.Status</td>
-                    <td>@it.Booking.Fare.ToString("0.00")</td>
-                </tr>
-                row++;
-            }
-        </tbody>
-    </table>
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Pending Cash Items</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Booking</th>
+                                <th>Status</th>
+                                <th>Pickup</th>
+                                <th>Fare</th>
+                                <th>Payment Ref</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in pendingCashItems)
+                            {
+                                <tr>
+                                    <td>#@b.BookingId</td>
+                                    <td>@b.Status</td>
+                                    <td>@b.PickupDateTime.ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td>$@b.Fare.ToString("0.00")</td>
+                                    <td>@(b.Payment?.ReferenceNo ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
 
-    <!-- Payment Method UI -->
-    <div class="card mt-3">
-        <div class="card-body">
-            <h5 class="mb-3">Payment Method</h5>
-
-            <div class="mb-3" style="max-width:320px;">
-                <label class="form-label fw-bold">Method</label>
-                <select class="form-select" @bind="paymentMethod" disabled="@isPaying">
-                    <option value="Card">Card</option>
-                    <option value="PayNow">PayNow</option>
-                    <option value="Cash">Cash</option>
-                </select>
-            </div>
-
-            @if (paymentMethod == "Card")
-            {
-                <div class="row g-2" style="max-width:520px;">
-                    <div class="col-12 col-md-6">
-                        <label class="form-label">Name on card</label>
-                        <input class="form-control" @bind="cardName" placeholder="e.g. TAN JJ" disabled="@isPaying" />
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label">Last 4 digits</label>
-                        <input class="form-control" @bind="cardLast4" maxlength="4" placeholder="1234" disabled="@isPaying" />
-                    </div>
-                </div>
-                <div class="form-text mt-2">
-                    Mock only — only last 4 digits are stored (receipt purpose).
-                </div>
-            }
-            else if (paymentMethod == "PayNow")
-            {
-                <div style="max-width:320px;">
-                    <label class="form-label">PayNow mobile number</label>
-                    <input class="form-control" @bind="payNowMobile" placeholder="e.g. 91234567" disabled="@isPaying" />
-                </div>
-                <div class="form-text mt-2">
-                    Mock only — no real gateway.
-                </div>
-            }
-            else
-            {
                 <div class="form-text">
-                    Cash payment (mock). Clicking Pay will mark items as paid.
+                    Once confirmed, these bookings will be marked as paid automatically.
                 </div>
-            }
+            </div>
         </div>
-    </div>
+    }
 
-    <div class="d-flex align-items-center gap-3 mt-3">
-        <div class="fw-bold">
-            Total Selected: @TotalSelected().ToString("0.00")
+    @if (items.Count == 0)
+    {
+        <p>No outstanding payments.</p>
+        <button class="btn btn-outline-dark" @onclick="Back">Back to My Bookings</button>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Pay Outstanding Items</h5>
+
+                <div class="mb-2">
+                    <div><b>Transport Balance:</b> $@transportBalance.ToString("0.00")</div>
+                    <div class="form-text">Top up from Passenger Home (Card only).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Payment Method</label>
+                    <select class="form-select" @bind="paymentMethod">
+                        <option value="Balance">Transport Balance</option>
+                        <option value="Cash">Cash (Pending Confirmation)</option>
+                    </select>
+
+                    @if (paymentMethod == "Cash")
+                    {
+                        <div class="form-text mt-1">
+                            Cash payments are recorded as <b>Pending</b> until the driver confirms cash received.
+                            If you selected bookings from different drivers, the system will create separate pending cash records (one per driver).
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-2">
+                    <button class="btn btn-outline-dark btn-sm me-2" @onclick="SelectAll">Select All</button>
+                    <button class="btn btn-outline-dark btn-sm" @onclick="ClearAll">Clear</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;"></th>
+                                <th>Booking</th>
+                                <th>Status</th>
+                                <th>Pickup</th>
+                                <th>Fare</th>
+                                <th>Driver</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var it in items)
+                            {
+                                <tr>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input"
+                                               @bind="it.IsSelected" />
+                                    </td>
+                                    <td>#@it.Booking.BookingId</td>
+                                    <td>@it.Booking.Status</td>
+                                    <td>@it.Booking.PickupDateTime.ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td>$@it.Booking.Fare.ToString("0.00")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(it.Booking.DriverUserId) ? "-" : "Assigned")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <div><b>Selected Items:</b> @SelectedCount</div>
+                    <div><b>Total:</b> $@SelectedTotal.ToString("0.00")</div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(payError))
+                {
+                    <div class="alert alert-danger mt-3">@payError</div>
+                }
+
+                <div class="mt-3">
+                    <button class="btn btn-dark" @onclick="PaySelected" disabled="@(!CanPay)">
+                        @(paymentMethod == "Cash" ? "Create Cash Payment (Pending)" : "Pay with Balance")
+                    </button>
+                    <button class="btn btn-outline-dark ms-2" @onclick="Back">Back</button>
+                </div>
+            </div>
         </div>
 
-        <button class="btn btn-dark"
-                @onclick="PaySelected"
-                disabled="@(!HasAnySelected() || isPaying)">
-            @(isPaying ? "Processing..." : "Pay Selected (Mock)")
-        </button>
+        @if (lastPayments.Count > 0)
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Payment Record(s)</h5>
 
-        <button class="btn btn-outline-dark" @onclick="Back" disabled="@isPaying">
-            Back
-        </button>
-    </div>
+                    @foreach (var p in lastPayments)
+                    {
+                        <div class="mb-3">
+                            <div><b>Reference:</b> @p.ReferenceNo</div>
+                            <div><b>Method:</b> @p.Method</div>
+                            <div><b>Status:</b> @p.Status</div>
+                            <div><b>Amount:</b> $@p.TotalAmount.ToString("0.00")</div>
+                            <div><b>Items:</b> @p.ItemCount</div>
+                            <div><b>Created:</b> @p.CreatedAt.ToString("dd MMM yyyy, HH:mm")</div>
 
-    <div class="form-text mt-2">
-        This is a mock payment (no real gateway). Paying will mark selected items as paid.
-    </div>
+                            @if (p.CompletedAt != null)
+                            {
+                                <div><b>Completed:</b> @p.CompletedAt.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                            }
+
+                            <hr />
+                        </div>
+                    }
+
+                    <div class="form-text">
+                        For cash payments: the driver will confirm and then the booking(s) will be marked as paid.
+                    </div>
+                </div>
+            </div>
+        }
+    }
 }
 
 @code {
     [Parameter] public int? PreselectId { get; set; }
 
-    private bool isLoading = true;
-    private bool isPaying = false;
-    private string? msg;
-
-    private List<PayItem> items = new();
-
-    // Payment method (mock UI)
-    private string paymentMethod = "Card";
-    private string? cardName;
-    private string? cardLast4;
-    private string? payNowMobile;
-
-    // Receipt (shown after successful payment)
-    private ReceiptView? lastReceipt = null;
-    private List<Booking> lastPaidBookings = new();
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadOutstanding();
-    }
-
-    private async Task<ApplicationUser?> GetCurrentUser()
-    {
-        var authState = await authStateProvider.GetAuthenticationStateAsync();
-        return await userManager.GetUserAsync(authState.User);
-    }
-
-    private async Task LoadOutstanding()
-    {
-        isLoading = true;
-        msg = null;
-
-        // reset receipt
-        lastReceipt = null;
-        lastPaidBookings.Clear();
-        items.Clear();
-
-        var user = await GetCurrentUser();
-        if (user == null)
-        {
-            msg = "Unable to identify passenger. Please login again.";
-            isLoading = false;
-            return;
-        }
-
-        // Outstanding payments:
-        // 1) Completed rides that are not paid
-        // 2) Cancelled accepted penalty bookings (Fare == 2) that are not paid
-        var outstanding = db.Bookings
-            .Where(b => b.PassengerUserId == user.Id &&
-                        !b.IsPaid &&
-                        (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
-            .OrderBy(b => b.PickupDateTime)
-            .ThenBy(b => b.BookingId)
-            .ToList();
-
-        foreach (var b in outstanding)
-        {
-            items.Add(new PayItem
-            {
-                Booking = b,
-                IsSelected = (PreselectId.HasValue && b.BookingId == PreselectId.Value)
-            });
-        }
-
-        isLoading = false;
-    }
-
-    private void Toggle(PayItem it, ChangeEventArgs e)
-    {
-        if (isPaying) return;
-
-        if (e.Value is bool b)
-            it.IsSelected = b;
-        else
-            it.IsSelected = !it.IsSelected;
-    }
-
-    private bool HasAnySelected() => items.Any(x => x.IsSelected);
-
-    private decimal TotalSelected() => items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
-
-    private bool ValidatePaymentDetails(out string error)
-    {
-        error = "";
-
-        if (paymentMethod == "Card")
-        {
-            if (string.IsNullOrWhiteSpace(cardName))
-            {
-                error = "Please enter name on card.";
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(cardLast4) || cardLast4.Length != 4 || !cardLast4.All(char.IsDigit))
-            {
-                error = "Please enter the last 4 digits of your card.";
-                return false;
-            }
-        }
-        else if (paymentMethod == "PayNow")
-        {
-            if (string.IsNullOrWhiteSpace(payNowMobile) || payNowMobile.Length < 8 || !payNowMobile.All(char.IsDigit))
-            {
-                error = "Please enter a valid PayNow mobile number.";
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private bool IsMockDeclined(out string declineReason)
-    {
-        declineReason = "";
-
-        if (paymentMethod == "Card")
-        {
-            if (!string.IsNullOrWhiteSpace(cardLast4) && cardLast4 == "0000")
-            {
-                declineReason = "Card was declined (mock). Try a different card last 4 digits.";
-                return true;
-            }
-        }
-        else if (paymentMethod == "PayNow")
-        {
-            if (!string.IsNullOrWhiteSpace(payNowMobile) && payNowMobile.EndsWith("000"))
-            {
-                declineReason = "PayNow transfer failed (mock). Try a different mobile number.";
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private string GenerateReferenceNo()
-    {
-        // Example: TB-20260114-9F3A2C
-        var part = Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
-        return $"TB-{DateTime.Now:yyyyMMdd}-{part}";
-    }
-
-    private async Task PaySelected()
-    {
-        if (isPaying) return;
-
-        msg = null;
-        lastReceipt = null;
-
-        if (!ValidatePaymentDetails(out var err))
-        {
-            msg = err;
-            return;
-        }
-
-        var user = await GetCurrentUser();
-        if (user == null)
-        {
-            msg = "Unable to identify passenger. Please login again.";
-            return;
-        }
-
-        var selectedIds = items
-            .Where(x => x.IsSelected)
-            .Select(x => x.Booking.BookingId)
-            .ToList();
-
-        if (selectedIds.Count == 0)
-        {
-            msg = "Please select at least one item.";
-            return;
-        }
-
-        isPaying = true;
-
-        var now = DateTime.Now;
-        var reference = GenerateReferenceNo();
-
-        try
-        {
-            await using var tx = await db.Database.BeginTransactionAsync();
-
-            var toPay = await db.Bookings
-                .Where(b => selectedIds.Contains(b.BookingId) &&
-                            b.PassengerUserId == user.Id &&
-                            !b.IsPaid &&
-                            (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
-                .ToListAsync();
-
-            if (toPay.Count == 0)
-            {
-                msg = "No valid outstanding items were selected (they may already be paid).";
-                await tx.RollbackAsync();
-                return;
-            }
-
-            var total = toPay.Sum(b => b.Fare);
-
-            // Create ONE payment transaction
-            var payment = new PaymentModel
-            {
-                PassengerUserId = user.Id,
-                Method = paymentMethod,
-                Status = PaymentModel.PaymentStatuses.Processing,
-                ReferenceNo = reference,
-                TotalAmount = total,
-                ItemCount = toPay.Count,
-                CreatedAt = now,
-                CardLast4 = (paymentMethod == "Card" ? cardLast4 : null)
-            };
-
-            db.Payments.Add(payment);
-            await db.SaveChangesAsync(); // generates PaymentId
-
-            await Task.Delay(900); // mock processing
-
-            // Mock decline
-            if (IsMockDeclined(out var declineReason))
-            {
-                var failedAt = DateTime.Now;
-
-                payment.Status = PaymentModel.PaymentStatuses.Failed;
-                payment.CompletedAt = failedAt;
-
-                await db.SaveChangesAsync();
-                await tx.CommitAsync();
-
-                msg = declineReason;
-                await LoadOutstanding();
-                return;
-            }
-
-            // Success
-            var completedAt = DateTime.Now;
-
-            payment.Status = PaymentModel.PaymentStatuses.Succeeded;
-            payment.CompletedAt = completedAt;
-
-            foreach (var b in toPay)
-            {
-                b.IsPaid = true;
-                b.PaidAt = completedAt;
-                b.PaymentId = payment.PaymentId; // link bookings to this transaction
-            }
-
-            await db.SaveChangesAsync();
-            await tx.CommitAsync();
-
-            lastReceipt = new ReceiptView
-            {
-                ReferenceNo = payment.ReferenceNo,
-                Method = payment.Method,
-                CardLast4 = payment.CardLast4,
-                TotalAmount = payment.TotalAmount,
-                CompletedAt = payment.CompletedAt,
-                ItemCount = payment.ItemCount
-            };
-
-            lastPaidBookings = toPay
-                .OrderBy(b => b.PickupDateTime)
-                .ThenBy(b => b.BookingId)
-                .ToList();
-
-            msg = paymentMethod switch
-            {
-                "Card" => $"Card charged successfully (mock). {toPay.Count} item(s) marked as paid.",
-                "PayNow" => $"PayNow payment received (mock). {toPay.Count} item(s) marked as paid.",
-                "Cash" => $"Cash payment recorded (mock). {toPay.Count} item(s) marked as paid.",
-                _ => $"Payment successful (mock). {toPay.Count} item(s) marked as paid."
-            };
-
-            await LoadOutstanding();
-        }
-        catch
-        {
-            msg = "Payment failed (mock). Please try again.";
-        }
-        finally
-        {
-            isPaying = false;
-        }
-    }
-
-    private void Back()
-    {
-        nav.NavigateTo("/passenger/mybookings");
-    }
-
-    private class PayItem
+    class PayItem
     {
         public Booking Booking { get; set; } = new Booking();
         public bool IsSelected { get; set; }
     }
 
-    private class ReceiptView
+    bool isLoading = true;
+    string msg = "";
+    string payError = "";
+
+    string paymentMethod = "Balance"; // "Balance" or "Cash"
+
+    List<PayItem> items = new();
+    List<Booking> pendingCashItems = new();
+
+    PassengerProfile? profile;
+    decimal transportBalance = 0m;
+
+    List<PaymentModel> lastPayments = new();
+
+    int SelectedCount => items.Count(x => x.IsSelected);
+    decimal SelectedTotal => items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
+    bool CanPay => SelectedCount > 0 && SelectedTotal > 0m;
+
+    protected override async Task OnInitializedAsync()
     {
-        public string ReferenceNo { get; set; } = "";
-        public string Method { get; set; } = "";
-        public string? CardLast4 { get; set; }
-        public decimal TotalAmount { get; set; }
-        public DateTime? CompletedAt { get; set; }
-        public int ItemCount { get; set; }
+        await LoadAll();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAll();
+    }
+
+    async Task LoadAll()
+    {
+        isLoading = true;
+        msg = "";
+        payError = "";
+        lastPayments = new();
+
+        var auth = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(auth.User);
+        if (user == null)
+        {
+            msg = "User not found.";
+            isLoading = false;
+            return;
+        }
+
+        profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
+        transportBalance = profile?.TransportBalance ?? 0m;
+
+        // Outstanding = unpaid, not already in a pending cash payment
+        var outstanding = await db.Bookings
+            .Include(b => b.Payment)
+            .Where(b =>
+                b.PassengerUserId == user.Id &&
+                !b.IsPaid &&
+                (b.PaymentId == null || b.Payment!.Status != "Pending") &&
+                (
+                    b.Status == "Completed" ||
+                    (b.Status == "Cancelled" && b.Fare == 2.00m)
+                )
+            )
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToListAsync();
+
+        items = outstanding.Select(b => new PayItem { Booking = b }).ToList();
+
+        pendingCashItems = await db.Bookings
+            .Include(b => b.Payment)
+            .Where(b =>
+                b.PassengerUserId == user.Id &&
+                !b.IsPaid &&
+                b.PaymentId != null &&
+                b.Payment!.Method == "Cash" &&
+                b.Payment.Status == "Pending"
+            )
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToListAsync();
+
+        if (PreselectId != null)
+        {
+            var target = items.FirstOrDefault(x => x.Booking.BookingId == PreselectId.Value);
+            if (target != null) target.IsSelected = true;
+        }
+
+        isLoading = false;
+    }
+
+    void SelectAll()
+    {
+        foreach (var it in items) it.IsSelected = true;
+    }
+
+    void ClearAll()
+    {
+        foreach (var it in items) it.IsSelected = false;
+        payError = "";
+    }
+
+    string MakeRef()
+    {
+        return "TP" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
+    }
+
+    async Task PaySelected()
+    {
+        payError = "";
+        msg = "";
+        lastPayments = new();
+
+        var selected = items.Where(x => x.IsSelected).Select(x => x.Booking).ToList();
+        if (selected.Count == 0)
+        {
+            payError = "Please select at least one item.";
+            return;
+        }
+
+        var totalAll = selected.Sum(b => b.Fare);
+        if (totalAll <= 0m)
+        {
+            payError = "Total must be more than $0.";
+            return;
+        }
+
+        var auth = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(auth.User);
+        if (user == null)
+        {
+            payError = "User not found.";
+            return;
+        }
+
+        profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
+        if (profile == null)
+        {
+            payError = "Profile not found.";
+            return;
+        }
+
+        var now = DateTime.Now;
+
+        if (paymentMethod == "Balance")
+        {
+            if (profile.TransportBalance < totalAll)
+            {
+                payError = "Insufficient transport balance. Please top up from Home.";
+                return;
+            }
+
+            // One payment record for balance
+            var refNo = MakeRef();
+
+            var payment = new PaymentModel
+            {
+                PassengerUserId = user.Id,
+                TotalAmount = totalAll,
+                ItemCount = selected.Count,
+                Method = "Balance",
+                Status = "Succeeded",
+                ReferenceNo = refNo,
+                CreatedAt = now,
+                CompletedAt = now
+            };
+
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync();
+
+            foreach (var b in selected)
+            {
+                b.PaymentId = payment.PaymentId;
+                b.IsPaid = true;
+                b.PaidAt = now;
+            }
+
+            profile.TransportBalance -= totalAll;
+
+            db.WalletTransactions.Add(new WalletTransaction
+            {
+                UserId = user.Id,
+                Amount = -totalAll,
+                Type = "RidePayment",
+                Method = "Balance",
+                ReferenceNo = refNo
+            });
+
+            await db.SaveChangesAsync();
+
+            lastPayments.Add(payment);
+            msg = "Payment successful using Transport Balance.";
+        }
+        else
+        {
+            // CASH: split by DriverUserId (so each driver confirms their own cash)
+            // ALSO require DriverUserId to exist for completed rides.
+            var invalid = selected.Where(b => b.Status == "Completed" && string.IsNullOrWhiteSpace(b.DriverUserId)).ToList();
+            if (invalid.Count > 0)
+            {
+                payError = "Some completed rides do not have an assigned driver. Cash payment cannot be created for those items.";
+                return;
+            }
+
+            var groups = selected
+                .GroupBy(b => string.IsNullOrWhiteSpace(b.DriverUserId) ? "NO_DRIVER" : b.DriverUserId!)
+                .ToList();
+
+            foreach (var grp in groups)
+            {
+                var list = grp.ToList();
+                var groupTotal = list.Sum(b => b.Fare);
+
+                var refNo = MakeRef();
+
+                var payment = new PaymentModel
+                {
+                    PassengerUserId = user.Id,
+                    TotalAmount = groupTotal,
+                    ItemCount = list.Count,
+                    Method = "Cash",
+                    Status = "Pending",
+                    ReferenceNo = refNo,
+                    CreatedAt = now
+                };
+
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync();
+
+                foreach (var b in list)
+                {
+                    b.PaymentId = payment.PaymentId;
+                    // cash is pending: do NOT mark IsPaid here
+                }
+
+                await db.SaveChangesAsync();
+
+                lastPayments.Add(payment);
+            }
+
+            msg = "Cash payment record(s) created (Pending). Please pay the driver. Payment will complete after confirmation.";
+        }
+
+        await LoadAll();
+    }
+
+    void Back()
+    {
+        nav.NavigateTo("/passenger/mybookings");
     }
 }

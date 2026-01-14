@@ -41,5 +41,10 @@ namespace Transport_Book_FSD.Models
             public const string Failed = "Failed";
             public const string Cancelled = "Cancelled";
         }
+
+        public DateTime? ConfirmedAt { get; set; }
+        public string? ConfirmedByUserId { get; set; }
+        public string? ConfirmedByRole { get; set; } // "Driver" or "Staff"
+
     }
 }

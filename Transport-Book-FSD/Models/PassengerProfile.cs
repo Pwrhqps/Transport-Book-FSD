@@ -23,6 +23,7 @@ namespace Transport_Book_FSD.Models
         public string EmergencyContact { get; set; } = "";
 
         public int TotalCompletedTrips { get; set; } = 0;
+        public decimal TransportBalance { get; set; } = 0m;
         public decimal CancellationPenaltyBalance { get; set; }
         public bool IsSuspended { get; set; } = false;
         public string SuspendedReason { get; set; } = "";

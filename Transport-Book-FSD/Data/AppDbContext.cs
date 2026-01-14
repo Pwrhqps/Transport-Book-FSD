@@ -16,6 +16,8 @@ namespace Transport_Book_FSD.Data
         public DbSet<Feedback> Feedbacks { get; set; }
         public DbSet<PassengerProfile> PassengerProfiles { get; set; }
         public DbSet<DriverProfile> DriverProfiles { get; set; }
+        public DbSet<PassengerCard> PassengerCards { get; set; }
+        public DbSet<WalletTransaction> WalletTransactions { get; set; }
 
         // Staff
         public DbSet<Staff> Staffs { get; set; }
