@@ -3,9 +3,12 @@
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
 @using Transport_Book_FSD.Data
 @using Transport_Book_FSD.Models
+@using PaymentModel = Transport_Book_FSD.Models.Payment
 @attribute [Authorize(Roles = "Passenger")]
 
 @inject AppDbContext db
@@ -14,6 +17,52 @@
 @inject NavigationManager nav
 
 <h3>Payment</h3>
+
+@if (lastReceipt != null)
+{
+    <div class="alert alert-success">
+        <div class="fw-bold">Payment Successful</div>
+        <div>Reference: <b>@lastReceipt.ReferenceNo</b></div>
+        <div>
+            Method: <b>@lastReceipt.Method</b>
+            @(string.IsNullOrWhiteSpace(lastReceipt.CardLast4) ? "" : $" (•••• {lastReceipt.CardLast4})")
+        </div>
+        <div>Total: <b>$@lastReceipt.TotalAmount.ToString("0.00")</b></div>
+        <div>Paid at: @lastReceipt.CompletedAt?.ToString("dd/MM/yyyy HH:mm")</div>
+        <div class="mt-2">Items paid: @lastReceipt.ItemCount</div>
+
+        @if (lastPaidBookings.Count > 0)
+        {
+            <hr />
+            <div class="fw-bold mb-2">Receipt Details</div>
+
+            <table class="table table-sm table-bordered mb-0 bg-white">
+                <thead>
+                    <tr>
+                        <th style="width:80px;">Booking</th>
+                        <th>Pickup</th>
+                        <th>Dropoff</th>
+                        <th style="width:160px;">Pickup Time</th>
+                        <th style="width:90px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in lastPaidBookings)
+                    {
+                        <tr>
+                            <td>@b.BookingId</td>
+                            <td>@b.PickupLocation</td>
+                            <td>@b.DropoffLocation</td>
+                            <td>@b.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@b.Fare.ToString("0.00")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
 
 @if (!string.IsNullOrEmpty(msg))
 {
@@ -55,7 +104,8 @@ else
                     <td>
                         <input type="checkbox"
                                checked="@it.IsSelected"
-                               @onchange="(e) => Toggle(it, e)" />
+                               @onchange="(e) => Toggle(it, e)"
+                               disabled="@isPaying" />
                     </td>
                     <td>@row</td>
                     <td>@it.Booking.PickupLocation</td>
@@ -69,16 +119,67 @@ else
         </tbody>
     </table>
 
-    <div class="d-flex align-items-center gap-3">
+    <!-- Payment Method UI -->
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="mb-3">Payment Method</h5>
+
+            <div class="mb-3" style="max-width:320px;">
+                <label class="form-label fw-bold">Method</label>
+                <select class="form-select" @bind="paymentMethod" disabled="@isPaying">
+                    <option value="Card">Card</option>
+                    <option value="PayNow">PayNow</option>
+                    <option value="Cash">Cash</option>
+                </select>
+            </div>
+
+            @if (paymentMethod == "Card")
+            {
+                <div class="row g-2" style="max-width:520px;">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Name on card</label>
+                        <input class="form-control" @bind="cardName" placeholder="e.g. TAN JJ" disabled="@isPaying" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Last 4 digits</label>
+                        <input class="form-control" @bind="cardLast4" maxlength="4" placeholder="1234" disabled="@isPaying" />
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    Mock only — only last 4 digits are stored (receipt purpose).
+                </div>
+            }
+            else if (paymentMethod == "PayNow")
+            {
+                <div style="max-width:320px;">
+                    <label class="form-label">PayNow mobile number</label>
+                    <input class="form-control" @bind="payNowMobile" placeholder="e.g. 91234567" disabled="@isPaying" />
+                </div>
+                <div class="form-text mt-2">
+                    Mock only — no real gateway.
+                </div>
+            }
+            else
+            {
+                <div class="form-text">
+                    Cash payment (mock). Clicking Pay will mark items as paid.
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 mt-3">
         <div class="fw-bold">
             Total Selected: @TotalSelected().ToString("0.00")
         </div>
 
-        <button class="btn btn-dark" @onclick="PaySelected" disabled="@(!HasAnySelected())">
-            Pay Selected (Mock)
+        <button class="btn btn-dark"
+                @onclick="PaySelected"
+                disabled="@(!HasAnySelected() || isPaying)">
+            @(isPaying ? "Processing..." : "Pay Selected (Mock)")
         </button>
 
-        <button class="btn btn-outline-dark" @onclick="Back">
+        <button class="btn btn-outline-dark" @onclick="Back" disabled="@isPaying">
             Back
         </button>
     </div>
@@ -92,9 +193,20 @@ else
     [Parameter] public int? PreselectId { get; set; }
 
     private bool isLoading = true;
+    private bool isPaying = false;
     private string? msg;
 
     private List<PayItem> items = new();
+
+    // Payment method (mock UI)
+    private string paymentMethod = "Card";
+    private string? cardName;
+    private string? cardLast4;
+    private string? payNowMobile;
+
+    // Receipt (shown after successful payment)
+    private ReceiptView? lastReceipt = null;
+    private List<Booking> lastPaidBookings = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,6 +223,8 @@ else
     {
         isLoading = true;
         msg = null;
+        lastReceipt = null;
+        lastPaidBookings.Clear();
         items.Clear();
 
         var user = await GetCurrentUser();
@@ -146,25 +260,91 @@ else
 
     private void Toggle(PayItem it, ChangeEventArgs e)
     {
+        if (isPaying) return;
+
         if (e.Value is bool b)
             it.IsSelected = b;
         else
             it.IsSelected = !it.IsSelected;
     }
 
-    private bool HasAnySelected()
+    private bool HasAnySelected() => items.Any(x => x.IsSelected);
+
+    private decimal TotalSelected() => items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
+
+    private bool ValidatePaymentDetails(out string error)
     {
-        return items.Any(x => x.IsSelected);
+        error = "";
+
+        if (paymentMethod == "Card")
+        {
+            if (string.IsNullOrWhiteSpace(cardName))
+            {
+                error = "Please enter name on card.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(cardLast4) || cardLast4.Length != 4 || !cardLast4.All(char.IsDigit))
+            {
+                error = "Please enter the last 4 digits of your card.";
+                return false;
+            }
+        }
+        else if (paymentMethod == "PayNow")
+        {
+            if (string.IsNullOrWhiteSpace(payNowMobile) || payNowMobile.Length < 8 || !payNowMobile.All(char.IsDigit))
+            {
+                error = "Please enter a valid PayNow mobile number.";
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    private decimal TotalSelected()
+    private bool IsMockDeclined(out string declineReason)
     {
-        return items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
+        declineReason = "";
+
+        if (paymentMethod == "Card")
+        {
+            if (!string.IsNullOrWhiteSpace(cardLast4) && cardLast4 == "0000")
+            {
+                declineReason = "Card was declined (mock). Try a different card last 4 digits.";
+                return true;
+            }
+        }
+        else if (paymentMethod == "PayNow")
+        {
+            if (!string.IsNullOrWhiteSpace(payNowMobile) && payNowMobile.EndsWith("000"))
+            {
+                declineReason = "PayNow transfer failed (mock). Try a different mobile number.";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string GenerateReferenceNo()
+    {
+        // Example: TB-20260114-9F3A2C
+        var part = Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
+        return $"TB-{DateTime.Now:yyyyMMdd}-{part}";
     }
 
     private async Task PaySelected()
     {
+        if (isPaying) return;
+
         msg = null;
+        lastReceipt = null;
+
+        if (!ValidatePaymentDetails(out var err))
+        {
+            msg = err;
+            return;
+        }
 
         var user = await GetCurrentUser();
         if (user == null)
@@ -173,39 +353,144 @@ else
             return;
         }
 
-        var selected = items.Where(x => x.IsSelected).Select(x => x.Booking.BookingId).ToList();
-        if (selected.Count == 0)
+        var selectedIds = items
+            .Where(x => x.IsSelected)
+            .Select(x => x.Booking.BookingId)
+            .ToList();
+
+        if (selectedIds.Count == 0)
         {
             msg = "Please select at least one item.";
             return;
         }
 
-        // SECURITY: only pay bookings that belong to this passenger and are outstanding
-        var toPay = db.Bookings
-            .Where(b => selected.Contains(b.BookingId) &&
-                   b.PassengerUserId == user.Id &&
-                   !b.IsPaid &&
-                   (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+        isPaying = true;
+
+        var now = DateTime.Now;
+        var reference = GenerateReferenceNo();
+
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            var toPay = await db.Bookings
+                .Where(b => selectedIds.Contains(b.BookingId) &&
+                            b.PassengerUserId == user.Id &&
+                            !b.IsPaid &&
+                            (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m)))
+                .ToListAsync();
+
+            if (toPay.Count == 0)
+            {
+                msg = "No valid outstanding items were selected (they may already be paid).";
+                await tx.RollbackAsync();
+                return;
+            }
+
+            var total = toPay.Sum(b => b.Fare);
+
+            foreach (var b in toPay)
+            {
+                var p = new PaymentModel
+                {
+                    BookingId = b.BookingId,
+                    Amount = b.Fare,
+                    Method = paymentMethod,
+                    Status = PaymentModel.PaymentStatuses.Processing,
+
+                    ReferenceNo = reference,
+                    TotalAmount = total,
+                    CreatedAt = now,
+                    CardLast4 = (paymentMethod == "Card" ? cardLast4 : null),
+
+                    PaymentDate = now
+                };
+
+                db.Payments.Add(p);
+            }
+
+            await db.SaveChangesAsync();
+
+            await Task.Delay(900);
+
+            if (IsMockDeclined(out var declineReason))
+            {
+                var failedAt = DateTime.Now;
+
+                var paymentRowsFail = await db.Payments
+                    .Where(p => p.ReferenceNo == reference)
+                    .ToListAsync();
+
+                foreach (var p in paymentRowsFail)
+                {
+                    p.Status = PaymentModel.PaymentStatuses.Failed;
+                    p.CompletedAt = failedAt;
+                }
+
+                await db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                msg = declineReason;
+                await LoadOutstanding();
+                return;
+            }
+
+            var completedAt = DateTime.Now;
+
+            var paymentRows = await db.Payments
+                .Where(p => p.ReferenceNo == reference)
+                .ToListAsync();
+
+            foreach (var p in paymentRows)
+            {
+                p.Status = PaymentModel.PaymentStatuses.Succeeded;
+                p.CompletedAt = completedAt;
+            }
+
+            foreach (var b in toPay)
+            {
+                b.IsPaid = true;
+                b.PaidAt = completedAt;
+            }
+
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            lastReceipt = new ReceiptView
+            {
+                ReferenceNo = reference,
+                Method = paymentMethod,
+                CardLast4 = (paymentMethod == "Card" ? cardLast4 : null),
+                TotalAmount = total,
+                CompletedAt = completedAt,
+                ItemCount = toPay.Count
+            };
+
+            lastPaidBookings = toPay
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
             .ToList();
 
-        if (toPay.Count == 0)
-        {
-            msg = "No valid outstanding items were selected.";
-            return;
+            msg = paymentMethod switch
+            {
+                "Card" => $"Card charged successfully (mock). {toPay.Count} item(s) marked as paid.",
+                "PayNow" => $"PayNow payment received (mock). {toPay.Count} item(s) marked as paid.",
+                "Cash" => $"Cash payment recorded (mock). {toPay.Count} item(s) marked as paid.",
+                _ => $"Payment successful (mock). {toPay.Count} item(s) marked as paid."
+            };
+
+            await LoadOutstanding();
         }
-
-        foreach (var b in toPay)
+        catch
         {
-            b.IsPaid = true;
-            b.PaidAt = DateTime.Now;
+            msg = "Payment failed (mock). Please try again.";
         }
-
-        await db.SaveChangesAsync();
-
-        msg = $"Payment successful (mock). {toPay.Count} item(s) marked as paid.";
-
-        await LoadOutstanding();
+        finally
+        {
+            isPaying = false;
+        }
     }
+
 
     private void Back()
     {
@@ -216,5 +501,15 @@ else
     {
         public Booking Booking { get; set; } = new Booking();
         public bool IsSelected { get; set; }
+    }
+
+    private class ReceiptView
+    {
+        public string ReferenceNo { get; set; } = "";
+        public string Method { get; set; } = "";
+        public string? CardLast4 { get; set; }
+        public decimal TotalAmount { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public int ItemCount { get; set; }
     }
 }
