@@ -1,14 +1,19 @@
 ﻿@page "/driver/vehicles/details/{Id:int}"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
-@using Transport_Book_FSD.Data
-@using Transport_Book_FSD.Models
-@inject AppDbContext _db
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Transport_Book_FSD.Data.AppDbContext _db
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @code {
     [Parameter] public int Id { get; set; }
-    private Vehicle vehicle;
+    private Transport_Book_FSD.Models.Vehicle vehicle;
     private bool loading = true;
+
+    private int rentalDays = 1;
+    private bool isProcessing = false;
+    private string message;
 }
 
 <h3>Vehicle details</h3>
@@ -33,13 +38,35 @@ else
                 <strong>Availability:</strong> @(vehicle.IsAvailable ? "Available" : "Not available") <br />
                 @if (!string.IsNullOrWhiteSpace(vehicle.Note))
                 {
-                    <strong>Note:</strong> 
-                    @vehicle.Note
+                    <strong>Note:</strong> @vehicle.Note
                 }
             </p>
-        </div>
-        <div class="card-footer">
-            <button class="btn btn-secondary" @onclick="GoBack">Back</button>
+
+            @if (vehicle.IsAvailable)
+            {
+                <div class="mb-3">
+                    <label for="rentalDays"><strong>Days to rent</strong></label>
+                    <InputNumber id="rentalDays" class="form-control" @bind-Value="rentalDays" Min="1" />
+                </div>
+
+                <div class="mb-3">
+                    <button class="btn btn-primary" @onclick="RentVehicle" disabled="@isProcessing">Rent vehicle</button>
+                    <button class="btn btn-secondary ms-2" @onclick="GoBack" disabled="@isProcessing">Back</button>
+                </div>
+            }
+            else
+            {
+                <div class="mb-3">
+                    <button class="btn btn-secondary" @onclick="GoBack">Back</button>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="mt-2">
+                    <div class="alert alert-info">@message</div>
+                </div>
+            }
         </div>
     </div>
 }
@@ -48,9 +75,83 @@ else
     protected override async Task OnInitializedAsync()
     {
         vehicle = await _db.Vehicles.FindAsync(Id);
-        // Optional: hide unavailable vehicles:
-        // if (vehicle != null && !vehicle.IsAvailable) vehicle = null;
         loading = false;
+    }
+
+    private async Task RentVehicle()
+    {
+        message = null;
+
+        if (rentalDays <= 0)
+        {
+            message = "Please enter a number of days greater than zero.";
+            return;
+        }
+
+        isProcessing = true;
+
+        try
+        {
+            // Re-fetch to ensure fresh state
+            var v = await _db.Vehicles.FindAsync(Id);
+            if (v == null)
+            {
+                message = "Vehicle not found.";
+                return;
+            }
+
+            if (!v.IsAvailable)
+            {
+                message = "Vehicle is no longer available.";
+                return;
+            }
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user?.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                message = "You must be signed in to rent a vehicle.";
+                return;
+            }
+
+            var driverId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(driverId))
+            {
+                message = "Unable to determine your user id.";
+                return;
+            }
+
+            var rental = new Transport_Book_FSD.Models.VehicleRental
+            {
+                VehicleId = v.VehicleId,
+                DriverId = driverId,
+                StartDate = DateTime.UtcNow,
+                Days = rentalDays,
+                EndDate = DateTime.UtcNow.AddDays(rentalDays),
+                TotalCost = v.DailyRate.HasValue ? v.DailyRate.Value * rentalDays : (decimal?)null,
+                Status = "Active"
+            };
+
+            _db.VehicleRentals.Add(rental);
+
+            // mark unavailable
+            v.IsAvailable = false;
+
+            await _db.SaveChangesAsync();
+
+            message = $"Vehicle rented successfully for {rentalDays} day(s). Rental id: {rental.VehicleRentalId}.";
+            vehicle = v; // update local
+        }
+        catch (Exception)
+        {
+            message = "An error occurred while processing the rental.";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
     }
 
     private void GoBack() => NavigationManager.NavigateTo("/driver/vehicles");

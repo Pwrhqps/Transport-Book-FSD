@@ -1,53 +1,177 @@
 ﻿@page "/driver/vehicles"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
+@using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
-@using Transport_Book_FSD.Data
-@using Transport_Book_FSD.Models
-@inject AppDbContext _db
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Transport_Book_FSD.Data.AppDbContext _db
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
 <h3>Available Vehicles for Rent</h3>
 
-@if (vehicles == null)
+@if (loading)
 {
     <p><em>Loading...</em></p>
 }
-else if (!vehicles.Any())
-{
-    <p>No vehicles currently available.</p>
-}
 else
 {
-    <div class="row">
-        @foreach (var v in vehicles)
-        {
-            <div class="col-md-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">@v.Make @v.Model (@v.Year)</h5>
-                        <h6 class="card-subtitle mb-2 text-muted">@v.VehicleType — @v.Colour</h6>
-                        <p class="card-text">
-                            License: @v.LicensePlate <br />
-                            Rate: @(v.DailyRate?.ToString("C") ?? "-")
-                        </p>
-                    </div>
-                    <div class="card-footer">
-                        <small class="text-success">@((v.IsAvailable) ? "Available" : "Not available")</small>
-                        <button class="btn btn-sm btn-outline-primary float-end" @onclick="() => ShowDetails(v.VehicleId)">Details</button>
+    <h5>Available Vehicles</h5>
+
+    @if (!availableVehicles.Any())
+    {
+        <p>No vehicles currently available.</p>
+    }
+    else
+    {
+        <div class="row mb-4">
+            @foreach (var v in availableVehicles)
+            {
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">@v.Make @v.Model (@v.Year)</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">@v.VehicleType — @v.Colour</h6>
+                            <p class="card-text">
+                                License: @v.LicensePlate <br />
+                                Rate: @(v.DailyRate?.ToString("C") ?? "-")
+                            </p>
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-success">@((v.IsAvailable) ? "Available" : "Not available")</small>
+                            <button class="btn btn-sm btn-outline-primary float-end" @onclick="() => ShowDetails(v.VehicleId)">Details</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        }
-    </div>
+            }
+        </div>
+    }
+
+    <h5>My Rentals</h5>
+
+    @if (!myRentals.Any())
+    {
+        <p>You have no active rentals.</p>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var r in myRentals)
+            {
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">@r.Vehicle.Make @r.Vehicle.Model (@r.Vehicle.Year)</h6>
+                        <small>Rented: @r.StartDate.ToLocalTime().ToString("g") — Days: @r.Days</small>
+                    </div>
+                    <p class="mb-1">@r.Vehicle.VehicleType — @r.Vehicle.Colour • License: @r.Vehicle.LicensePlate</p>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => ShowRentalDetails(r.VehicleRentalId)">Details</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmCancelRental(r.VehicleRentalId)">Cancel rental</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
-    private List<Transport_Book_FSD.Models.Vehicle> vehicles;
+    private List<Transport_Book_FSD.Models.Vehicle> availableVehicles = new();
+    private List<Transport_Book_FSD.Models.VehicleRental> myRentals = new();
+    private bool loading = true;
+    private string userId;
 
     protected override async Task OnInitializedAsync()
     {
-        vehicles = await _db.Vehicles.AsNoTracking().Where(v => v.IsAvailable).OrderBy(v => v.Make).ToListAsync();
+        loading = true;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        // Load available vehicles
+        availableVehicles = await _db.Vehicles
+            .AsNoTracking()
+            .Where(v => v.IsAvailable)
+            .OrderBy(v => v.Make)
+            .ThenBy(v => v.Model)
+            .ToListAsync();
+
+        // Load this driver's active rentals and include vehicle
+        if (!string.IsNullOrEmpty(userId))
+        {
+            myRentals = await _db.VehicleRentals
+                .AsNoTracking()
+                .Where(vr => vr.DriverId == userId && vr.Status == "Active")
+                .Include(vr => vr.Vehicle)
+                .OrderByDescending(vr => vr.StartDate)
+                .ToListAsync();
+        }
+
+        loading = false;
     }
 
-    private void ShowDetails(int id) => NavigationManager.NavigateTo($"/driver/vehicles/details/{id}");
+    private void ShowDetails(int vehicleId) => NavigationManager.NavigateTo($"/driver/vehicles/details/{vehicleId}");
+
+    private void ShowRentalDetails(int rentalId) => NavigationManager.NavigateTo($"/driver/rentals/details/{rentalId}");
+
+    private async Task ConfirmCancelRental(int rentalId)
+    {
+        var ok = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this rental early?");
+        if (!ok) return;
+
+        await CancelRental(rentalId);
+    }
+
+    private async Task CancelRental(int rentalId)
+    {
+        // Re-fetch rental with Vehicle and check owner
+        var rental = await _db.VehicleRentals
+            .Include(vr => vr.Vehicle)
+            .FirstOrDefaultAsync(vr => vr.VehicleRentalId == rentalId);
+
+        if (rental == null)
+        {
+            await ShowMessage("Rental not found.");
+            return;
+        }
+
+        if (rental.DriverId != userId)
+        {
+            await ShowMessage("You are not authorized to cancel this rental.");
+            return;
+        }
+
+        if (rental.Status != "Active")
+        {
+            await ShowMessage("This rental is not active.");
+            return;
+        }
+
+        // Mark rental cancelled and free vehicle
+        rental.Status = "Cancelled";
+        rental.EndDate = DateTime.UtcNow;
+
+        if (rental.Vehicle != null)
+        {
+            rental.Vehicle.IsAvailable = true;
+        }
+        else
+        {
+            // attempt to load vehicle and mark available if present
+            var vehicle = await _db.Vehicles.FindAsync(rental.VehicleId);
+            if (vehicle != null) vehicle.IsAvailable = true;
+        }
+
+        await _db.SaveChangesAsync();
+
+        // refresh lists
+        await OnInitializedAsync();
+        StateHasChanged();
+    }
+
+    private async Task ShowMessage(string text)
+    {
+        // simple in-place feedback: could be replaced with a toast
+        await JSRuntime.InvokeVoidAsync("alert", text);
+    }
 }

@@ -1,0 +1,156 @@
+﻿@page "/driver/rentals/details/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Transport_Book_FSD.Data.AppDbContext _db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Transport_Book_FSD.Models.VehicleRental rental;
+    private bool loading = true;
+    private string userId;
+    private bool processing = false;
+    private string message;
+}
+
+<h3>Rental details</h3>
+
+@if (loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (rental == null)
+{
+    <p class="text-danger">Rental not found.</p>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">@rental.Vehicle.Make @rental.Vehicle.Model (@rental.Vehicle.Year)</h4>
+            <h6 class="card-subtitle mb-2 text-muted">@rental.Vehicle.VehicleType — @rental.Vehicle.Colour</h6>
+
+            <p class="card-text">
+                <strong>Rented by:</strong> @rental.DriverId <br />
+                <strong>Start:</strong> @rental.StartDate.ToLocalTime().ToString("g") <br />
+                <strong>Days:</strong> @rental.Days <br />
+                <strong>End (planned):</strong> @(rental.EndDate?.ToLocalTime().ToString("g") ?? "-") <br />
+                <strong>Total cost:</strong> @(rental.TotalCost?.ToString("C") ?? "-") <br />
+                <strong>Status:</strong> @rental.Status
+            </p>
+
+            @if (rental.Status == "Active")
+            {
+                <div class="mb-3">
+                    <button class="btn btn-danger" @onclick="ConfirmCancel" disabled="@processing">Cancel rental</button>
+                    <button class="btn btn-secondary ms-2" @onclick="Back" disabled="@processing">Back</button>
+                </div>
+            }
+            else
+            {
+                <div class="mb-3">
+                    <button class="btn btn-secondary" @onclick="Back">Back</button>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert alert-info mt-2">@message</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        loading = true;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        rental = await _db.VehicleRentals
+            .Include(vr => vr.Vehicle)
+            .FirstOrDefaultAsync(vr => vr.VehicleRentalId == Id);
+
+        // ensure owner sees only their rental
+        if (rental != null && rental.DriverId != userId)
+        {
+            rental = null;
+        }
+
+        loading = false;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        var ok = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this rental early?");
+        if (!ok) return;
+
+        await Cancel();
+    }
+
+    private async Task Cancel()
+    {
+        processing = true;
+        try
+        {
+            var r = await _db.VehicleRentals
+                .Include(vr => vr.Vehicle)
+                .FirstOrDefaultAsync(vr => vr.VehicleRentalId == Id);
+
+            if (r == null)
+            {
+                message = "Rental not found.";
+                return;
+            }
+
+            if (r.DriverId != userId)
+            {
+                message = "You are not authorized to cancel this rental.";
+                return;
+            }
+
+            if (r.Status != "Active")
+            {
+                message = "This rental is not active.";
+                return;
+            }
+
+            r.Status = "Cancelled";
+            r.EndDate = DateTime.UtcNow;
+
+            if (r.Vehicle != null)
+            {
+                r.Vehicle.IsAvailable = true;
+            }
+            else
+            {
+                var vehicle = await _db.Vehicles.FindAsync(r.VehicleId);
+                if (vehicle != null) vehicle.IsAvailable = true;
+            }
+
+            await _db.SaveChangesAsync();
+
+            message = "Rental cancelled successfully.";
+            rental = r;
+        }
+        catch (Exception)
+        {
+            message = "An error occurred cancelling the rental.";
+        }
+        finally
+        {
+            processing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Back() => NavigationManager.NavigateTo("/driver/vehicles");
+}
