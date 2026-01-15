@@ -1,7 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Transport_Book_FSD.Models
+namespace TransportBookFSD.Models
 {
     public class DriverProfile
     {

@@ -3,8 +3,8 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
-@using Transport_Book_FSD.Data
-@using Transport_Book_FSD.Models
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
 @attribute [Authorize(Roles = "Passenger")]
 
 @inject AppDbContext db
@@ -101,7 +101,7 @@ else
     private string? comment;
 
     // IMPORTANT: fully qualify model type (prevents name clash with Feedback.razor page)
-    private Transport_Book_FSD.Models.Feedback? existingFeedback;
+    private TransportBookFSD.Models.Feedback? existingFeedback;
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,7 +196,7 @@ else
             return;
         }
 
-        var fb = new Transport_Book_FSD.Models.Feedback
+        var fb = new TransportBookFSD.Models.Feedback
         {
             BookingId = b.BookingId,
 

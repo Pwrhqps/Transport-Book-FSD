@@ -1,9 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Transport_Book_FSD.Models
+namespace TransportBookFSD.Models
 {
     public class Staff
     {
+        [Key]
         public int StaffId { get; set; }
 
         [Required, StringLength(120)]

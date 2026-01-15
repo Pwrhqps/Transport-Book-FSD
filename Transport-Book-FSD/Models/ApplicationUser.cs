@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 
-namespace Transport_Book_FSD.Models
+namespace TransportBookFSD.Models
 {
     public class ApplicationUser : IdentityUser
     {

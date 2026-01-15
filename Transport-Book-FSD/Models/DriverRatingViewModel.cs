@@ -1,8 +1,11 @@
 ﻿
-namespace Transport_Book_FSD.Models
+using System.ComponentModel.DataAnnotations;
+
+namespace TransportBookFSD.Models
 {
     public class DriverRatingViewModel
     {
+        [Key]
         public int DriverId { get; set; }
 
         public string UserId { get; set; } = "";

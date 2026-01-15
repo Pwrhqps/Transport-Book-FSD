@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Transport_Book_FSD.Models;
+using TransportBookFSD.Models;
 
-namespace Transport_Book_FSD.Data
+namespace TransportBookFSD.Data
 {
     public static class DbSeeder
     {

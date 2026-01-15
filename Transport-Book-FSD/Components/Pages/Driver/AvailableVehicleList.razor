@@ -3,7 +3,7 @@
 @using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
-@inject Transport_Book_FSD.Data.AppDbContext _db
+@inject TransportBookFSD.Data.AppDbContext _db
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
@@ -75,8 +75,8 @@ else
 }
 
 @code {
-    private List<Transport_Book_FSD.Models.Vehicle> availableVehicles = new();
-    private List<Transport_Book_FSD.Models.VehicleRental> myRentals = new();
+    private List<TransportBookFSD.Models.Vehicle> availableVehicles = new();
+    private List<TransportBookFSD.Models.VehicleRental> myRentals = new();
     private bool loading = true;
     private string userId;
 

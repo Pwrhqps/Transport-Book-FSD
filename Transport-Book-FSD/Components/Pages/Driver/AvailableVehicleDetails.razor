@@ -2,13 +2,13 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Driver")]
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
-@inject Transport_Book_FSD.Data.AppDbContext _db
+@inject TransportBookFSD.Data.AppDbContext _db
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 @code {
     [Parameter] public int Id { get; set; }
-    private Transport_Book_FSD.Models.Vehicle vehicle;
+    private TransportBookFSD.Models.Vehicle vehicle;
     private bool loading = true;
 
     private int rentalDays = 1;
@@ -122,7 +122,7 @@ else
                 return;
             }
 
-            var rental = new Transport_Book_FSD.Models.VehicleRental
+            var rental = new TransportBookFSD.Models.VehicleRental
             {
                 VehicleId = v.VehicleId,
                 DriverId = driverId,

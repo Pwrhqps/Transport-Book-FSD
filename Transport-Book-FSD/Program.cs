@@ -3,12 +3,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
-using Transport_Book_FSD.Components;
-using Transport_Book_FSD.Data;
-using Transport_Book_FSD.Models;
+using TransportBookFSD.Components;
+using TransportBookFSD.Data;
+using TransportBookFSD.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Services.AddDbContext<TransportBookFSDContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("TransportBookFSDContext") ?? throw new InvalidOperationException("Connection string 'TransportBookFSDContext' not found.")));
+builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -55,6 +58,8 @@ app.UseAntiforgery();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapDefaultControllerRoute();
 
 // ✅ LOGIN endpoint (HTTP POST, so cookie can be written)
 app.MapPost("/auth/login-post", async (

@@ -1,8 +1,8 @@
 ﻿@page "/staff/vehicles"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Staff")]
 @using Microsoft.EntityFrameworkCore
-@using Transport_Book_FSD.Data
-@using Transport_Book_FSD.Models
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
 @inject AppDbContext _db
 @inject NavigationManager NavigationManager
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
@@ -62,7 +62,7 @@ else
 }
 
 @code {
-    private List<Transport_Book_FSD.Models.Vehicle> vehicles;
+    private List<TransportBookFSD.Models.Vehicle> vehicles;
 
     protected override async Task OnInitializedAsync()
     {

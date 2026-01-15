@@ -1,9 +1,9 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Transport_Book_FSD.Models;
+using TransportBookFSD.Models;
 
-namespace Transport_Book_FSD.Models
+namespace TransportBookFSD.Models
 {
     public class VehicleRental
     {

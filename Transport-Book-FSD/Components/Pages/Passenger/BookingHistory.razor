@@ -4,8 +4,8 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
-@using Transport_Book_FSD.Data
-@using Transport_Book_FSD.Models
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
 @attribute [Authorize(Roles = "Passenger")]
 
 @inject AppDbContext db
@@ -162,7 +162,7 @@ else
     private int rating = 5;
     private string? comment;
 
-    private Transport_Book_FSD.Models.Feedback? existingFeedback;
+    private TransportBookFSD.Models.Feedback? existingFeedback;
 
     protected override async Task OnInitializedAsync()
     {
@@ -267,7 +267,7 @@ else
             return;
         }
 
-        var fb = new Transport_Book_FSD.Models.Feedback
+        var fb = new TransportBookFSD.Models.Feedback
         {
             BookingId = selectedBooking.BookingId,
             PassengerUserId = user.Id,

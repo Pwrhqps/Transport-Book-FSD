@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Transport_Book_FSD.Models;
+using TransportBookFSD.Models;
 
-namespace Transport_Book_FSD.Data
+namespace TransportBookFSD.Data
 {
     public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
