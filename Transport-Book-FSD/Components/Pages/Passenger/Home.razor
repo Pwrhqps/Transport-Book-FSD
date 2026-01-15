@@ -1,4 +1,5 @@
 ﻿@page "/passenger/home"
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
@@ -8,69 +9,274 @@
 
 @inject AppDbContext db
 @inject UserManager<ApplicationUser> userManager
-@inject NavigationManager nav
 @inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
 
 <h3>Passenger Home</h3>
-<p>Welcome Passenger.</p>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
 
 @if (isLoading)
 {
-    <p>Loading profile...</p>
+    <p>Loading...</p>
 }
 else if (profile == null)
 {
-    <p>No profile found.</p>
-    <button class="btn btn-dark" @onclick="@(() => nav.NavigateTo("/passenger/profile"))">Create Profile</button>
+    <div class="alert alert-danger">Profile not found.</div>
 }
 else
 {
+    <!-- Profile Summary -->
     <div class="card mb-3">
-        <div class="card-header fw-bold">My Profile</div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-2"><b>Full Name:</b> @profile.FullName</div>
-                    <div class="mb-2"><b>Contact:</b> @profile.ContactNumber</div>
-                    <div class="mb-2"><b>Gender:</b> @profile.Gender</div>
-                    <div class="mb-2">
-                        <b>Date of Birth:</b> @(profile.DateOfBirth.HasValue? profile.DateOfBirth.Value.ToString("dd/MM/yyyy") : "")
-                    </div>
+            <h5 class="card-title">Welcome, @profile.FullName</h5>
+
+            @if (profile.IsSuspended)
+            {
+                <div class="alert alert-danger mt-2">
+                    <b>Account Suspended</b><br />
+                    Reason: @profile.SuspendedReason<br />
+                    @if (profile.SuspendedUntil != null)
+                    {
+                        <span>Until: @profile.SuspendedUntil.Value.ToString("dd MMM yyyy")</span>
+                    }
                 </div>
-                <div class="col-md-6">
-                    <div class="mb-2"><b>Address:</b> @profile.ResidentialAddress</div>
-                    <div class="mb-2"><b>Emergency Contact:</b> @profile.EmergencyContact</div>
-                    <div class="mb-2"><b>Total Completed Trips:</b> @profile.TotalCompletedTrips</div>
-                    <div class="mb-2"><b>Cancellation Penalty:</b> @profile.CancellationPenaltyBalance.ToString("0.00")</div>
+            }
+
+            <div class="row g-2 mt-2">
+                <div class="col-12 col-md-6">
+                    <div><b>Contact:</b> @profile.ContactNumber</div>
+                    <div><b>Email:</b> @email</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div><b>Completed Trips:</b> @profile.TotalCompletedTrips</div>
+                    <div><b>Penalty Balance:</b> $@profile.CancellationPenaltyBalance.ToString("0.00")</div>
                 </div>
             </div>
 
             <div class="mt-3">
-                <button class="btn btn-dark" @onclick="@(() => nav.NavigateTo("/passenger/profile"))">
-                    Go to Profile
-                </button>
+                <button class="btn btn-outline-dark" @onclick="GoProfile">Edit Profile</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Wallet + Top Up -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Transport Balance</h5>
+                <button class="btn btn-outline-dark" @onclick="GoPaymentMethods">Payment Methods</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(walletMsg))
+            {
+                <div class="alert alert-info mt-3">@walletMsg</div>
+            }
+
+            <p class="mt-3 mb-2">
+                Current Balance: <b>$@profile.TransportBalance.ToString("0.00")</b>
+            </p>
+
+            <h6 class="fw-bold">Top Up (Card Only)</h6>
+            <div class="form-text mb-2">Minimum top-up is $10.</div>
+
+            @if (profile.IsSuspended)
+            {
+                <div class="alert alert-warning">
+                    You cannot top up while your account is suspended.
+                </div>
+            }
+            else if (cards.Count == 0)
+            {
+                <div class="alert alert-warning">
+                    No saved cards found. Click <b>Payment Methods</b> to add a card first.
+                </div>
+            }
+            else
+            {
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-7">
+                        <label class="form-label fw-bold">Select Card</label>
+                        <select class="form-select" @bind="selectedCardId">
+                            @foreach (var c in cards)
+                            {
+                                <option value="@c.PassengerCardId">
+                                    @(c.IsDefault ? "[Default] " : "")@c.CardholderName •••• @c.Last4 (@c.ExpMonth.ToString("00")/@c.ExpYear)
+                                </option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <label class="form-label fw-bold">Amount</label>
+                        <input class="form-control" type="number" min="10" step="1" @bind="topupAmount" />
+                    </div>
+
+                    <div class="col-12 col-md-2">
+                        <button class="btn btn-dark w-100" @onclick="TopUp">Top Up</button>
+                    </div>
+                </div>
+
+                <div class="mt-2 form-text">
+                    Demo rule: card ending with <b>0000</b> will be declined.
+                </div>
+            }
         </div>
     </div>
 }
 
 @code {
-    private PassengerProfile? profile;
-    private bool isLoading = true;
+    bool isLoading = true;
+    string msg = "";
+    string walletMsg = "";
+    string email = "";
+
+    PassengerProfile? profile;
+
+    List<PassengerCard> cards = new();
+    int selectedCardId = 0;
+    decimal topupAmount = 10m;
 
     protected override async Task OnInitializedAsync()
     {
+        await Load();
+    }
+
+    async Task Load()
+    {
         isLoading = true;
+        msg = "";
+        walletMsg = "";
 
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
 
         var user = await userManager.GetUserAsync(principal);
-        if (user != null)
+        if (user == null)
         {
-            profile = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
+            msg = "User not found.";
+            isLoading = false;
+            return;
         }
 
+        email = principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? user.Email ?? "";
+
+        profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
+        if (profile == null)
+        {
+            // create profile if missing (same behaviour as your Profile page)
+            profile = new PassengerProfile
+            {
+                UserId = user.Id,
+                FullName = "",
+                ContactNumber = "",
+                Gender = "",
+                DateOfBirth = new DateTime(2000, 1, 1),
+                ResidentialAddress = "",
+                EmergencyContact = "",
+                TotalCompletedTrips = 0,
+                TransportBalance = 0m,
+                CancellationPenaltyBalance = 0m
+            };
+
+            db.PassengerProfiles.Add(profile);
+            await db.SaveChangesAsync();
+        }
+
+        cards = await db.PassengerCards
+            .Where(c => c.UserId == user.Id)
+            .OrderByDescending(c => c.IsDefault)
+            .ThenByDescending(c => c.CreatedAt)
+            .ToListAsync();
+
+        selectedCardId = cards.FirstOrDefault()?.PassengerCardId ?? 0;
+
         isLoading = false;
+    }
+
+    void GoProfile()
+    {
+        nav.NavigateTo("/passenger/profile");
+    }
+
+    void GoPaymentMethods()
+    {
+        nav.NavigateTo("/passenger/payment-methods");
+    }
+
+    string MakeRef()
+    {
+        return "TP" + DateTime.Now.ToString("yyyyMMddHHmmss");
+    }
+
+    bool IsMockDeclined(PassengerCard c)
+    {
+        return c.Last4 == "0000";
+    }
+
+    async Task TopUp()
+    {
+        walletMsg = "";
+
+        if (profile == null)
+        {
+            walletMsg = "Profile not loaded.";
+            return;
+        }
+
+        if (profile.IsSuspended)
+        {
+            walletMsg = "You cannot top up while suspended.";
+            return;
+        }
+
+        if (cards.Count == 0 || selectedCardId == 0)
+        {
+            walletMsg = "Please add/select a card first.";
+            return;
+        }
+
+        if (topupAmount < 10m)
+        {
+            walletMsg = "Minimum top-up is $10.";
+            return;
+        }
+
+        var card = cards.FirstOrDefault(x => x.PassengerCardId == selectedCardId);
+        if (card == null)
+        {
+            walletMsg = "Selected card not found.";
+            return;
+        }
+
+        if (IsMockDeclined(card))
+        {
+            walletMsg = "Card was declined. Please try another card.";
+            return;
+        }
+
+        var refNo = MakeRef();
+
+        profile.TransportBalance += topupAmount;
+
+        db.WalletTransactions.Add(new WalletTransaction
+        {
+            UserId = profile.UserId,
+            Amount = topupAmount,
+            Type = "TopUp",
+            Method = "Card",
+            ReferenceNo = refNo,
+            PassengerCardId = card.PassengerCardId
+        });
+
+        await db.SaveChangesAsync();
+
+        walletMsg = $"Top-up successful. Ref: {refNo}";
+
+        // refresh cards/profile display values
+        await Load();
     }
 }

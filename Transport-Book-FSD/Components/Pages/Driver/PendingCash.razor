@@ -1,0 +1,258 @@
+﻿@page "/driver/pending-cash"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@using PaymentModel = Transport_Book_FSD.Models.Payment
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+@inject IJSRuntime JS
+
+<h3>Pending Cash</h3>
+<p>Confirm cash received. This will mark the related bookings as paid.</p>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (groups.Count == 0)
+{
+    <p>No pending cash payments.</p>
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+else
+{
+    @foreach (var g in groups)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="card-title mb-1">Ref: @g.Payment.ReferenceNo</h5>
+                        <div><b>Status:</b> @g.Payment.Status</div>
+                        <div><b>Amount:</b> $@g.Payment.TotalAmount.ToString("0.00")</div>
+                        <div><b>Items:</b> @g.Bookings.Count</div>
+                        <div><b>Created:</b> @g.Payment.CreatedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                        <div class="form-text">
+                            Confirm only after you receive the cash from the passenger.
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button class="btn btn-dark"
+                                disabled="@isWorking"
+                                @onclick="() => ConfirmPayment(g.Payment.PaymentId)">
+                            Confirm Cash Received
+                        </button>
+                    </div>
+                </div>
+
+                <hr />
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Booking</th>
+                                <th>Pickup</th>
+                                <th>Route</th>
+                                <th>Fare</th>
+                                <th>Ride Status</th>
+                                <th>Paid?</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in g.Bookings)
+                            {
+                                <tr>
+                                    <td>#@b.BookingId</td>
+                                    <td>@b.PickupDateTime.ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td>@b.PickupLocation → @b.DropoffLocation</td>
+                                    <td>$@b.Fare.ToString("0.00")</td>
+                                    <td>@b.Status</td>
+                                    <td>@(b.IsPaid ? "Yes" : "No")</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-outline-dark btn-sm"
+                                                @onclick="() => OpenJob(b.BookingId)">
+                                            Open
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    }
+
+    <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+}
+
+@code {
+    class Group
+    {
+        public PaymentModel Payment { get; set; } = new PaymentModel();
+        public List<Booking> Bookings { get; set; } = new();
+    }
+
+    bool isLoading = true;
+    bool isWorking = false;
+    string msg = "";
+
+    List<Group> groups = new();
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        return await userManager.GetUserAsync(authState.User);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    async Task Load()
+    {
+        isLoading = true;
+        msg = "";
+
+        var driver = await GetCurrentUser();
+        if (driver == null)
+        {
+            msg = "Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        // Get all bookings for this driver with Pending cash payments
+        var bookings = await db.Bookings
+            .Include(b => b.Payment)
+            .Where(b =>
+                b.DriverUserId == driver.Id &&
+                !b.IsPaid &&
+                b.PaymentId != null &&
+                b.Payment != null &&
+                b.Payment.Method == "Cash" &&
+                b.Payment.Status == "Pending"
+            )
+            .OrderBy(b => b.PaymentId)
+            .ThenBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToListAsync();
+
+        groups = bookings
+            .GroupBy(b => b.PaymentId!.Value)
+            .Select(g => new Group
+            {
+                Payment = g.First().Payment!,
+                Bookings = g.ToList()
+            })
+            .OrderByDescending(x => x.Payment.CreatedAt)
+            .ToList();
+
+        isLoading = false;
+    }
+
+    async Task ConfirmPayment(int paymentId)
+    {
+        if (isWorking) return;
+
+        var ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Confirm that you have received the cash for this payment?"
+        );
+
+        if (!ok) return;
+
+        isWorking = true;
+        msg = "";
+
+        var driver = await GetCurrentUser();
+        if (driver == null)
+        {
+            msg = "Please login again.";
+            isWorking = false;
+            return;
+        }
+
+        // Load payment (basic validation)
+        var payment = await db.Payments.FirstOrDefaultAsync(p => p.PaymentId == paymentId);
+        if (payment == null)
+        {
+            msg = "Payment not found.";
+            isWorking = false;
+            return;
+        }
+
+        if (payment.Method != "Cash" || payment.Status != "Pending")
+        {
+            msg = "This payment is no longer pending.";
+            isWorking = false;
+            await Load();
+            return;
+        }
+
+        // IMPORTANT: confirm ALL bookings under this payment for THIS driver
+        var linked = await db.Bookings
+            .Where(b => b.PaymentId == paymentId && b.DriverUserId == driver.Id && !b.IsPaid)
+            .ToListAsync();
+
+        if (linked.Count == 0)
+        {
+            msg = "No linked bookings found for this payment.";
+            isWorking = false;
+            await Load();
+            return;
+        }
+
+        var now = DateTime.Now;
+
+        payment.Status = "Succeeded";
+        payment.CompletedAt = now;
+
+        // Optional fields if you added them:
+        // payment.ConfirmedAt = now;
+        // payment.ConfirmedByUserId = driver.Id;
+        // payment.ConfirmedByRole = "Driver";
+
+        foreach (var b in linked)
+        {
+            b.IsPaid = true;
+            b.PaidAt = now;
+        }
+
+        await db.SaveChangesAsync();
+
+        msg = $"Cash confirmed. Ref: {payment.ReferenceNo}";
+        isWorking = false;
+
+        await Load();
+    }
+
+    void OpenJob(int id)
+    {
+        nav.NavigateTo($"/driver/job/{id}");
+    }
+
+    void Back()
+    {
+        nav.NavigateTo("/driver/myjobs");
+    }
+}

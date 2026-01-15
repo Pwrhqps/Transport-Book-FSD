@@ -1,0 +1,308 @@
+﻿@page "/passenger/payment-methods"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Transport_Book_FSD.Data
+@using Transport_Book_FSD.Models
+@attribute [Authorize(Roles = "Passenger")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>Payment Methods</h3>
+<p>Manage your saved cards. (Only last 4 digits and expiry are stored.)</p>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Saved Cards</h5>
+                <button class="btn btn-outline-dark" @onclick="Back">Back</button>
+            </div>
+
+            @if (cards.Count == 0)
+            {
+                <p class="mt-3">No saved cards yet.</p>
+            }
+            else
+            {
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Card</th>
+                                <th>Expiry</th>
+                                <th>Default</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in cards)
+                            {
+                                <tr>
+                                    <td>@c.CardholderName •••• @c.Last4</td>
+                                    <td>@c.ExpMonth.ToString("00")/@c.ExpYear</td>
+                                    <td>@(c.IsDefault ? "Yes" : "No")</td>
+                                    <td class="text-end">
+                                        @if (!c.IsDefault)
+                                        {
+                                            <button class="btn btn-outline-dark btn-sm me-2"
+                                                    @onclick="() => MakeDefault(c.PassengerCardId)">
+                                                Make Default
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => DeleteCard(c.PassengerCardId)">
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="form-text mt-2">
+                    Demo rule: card ending with <b>0000</b> will be declined during top-up.
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">Add New Card</h5>
+
+            <div class="row g-2">
+                <div class="col-12 col-md-5">
+                    <label class="form-label fw-bold">Cardholder Name</label>
+                    <input class="form-control" @bind="newName" />
+                </div>
+
+                <div class="col-6 col-md-2">
+                    <label class="form-label fw-bold">Last 4</label>
+                    <input class="form-control" maxlength="4" @bind="newLast4" placeholder="1234" />
+                </div>
+
+                <div class="col-3 col-md-2">
+                    <label class="form-label fw-bold">Exp Month</label>
+                    <input class="form-control" type="number" min="1" max="12" @bind="newMonth" />
+                </div>
+
+                <div class="col-3 col-md-3">
+                    <label class="form-label fw-bold">Exp Year</label>
+                    <input class="form-control" type="number" min="@DateTime.Now.Year" max="2100" @bind="newYear" />
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-dark" @onclick="AddCard">Add Card</button>
+                <button class="btn btn-outline-dark ms-2" @onclick="ClearForm">Clear</button>
+            </div>
+
+            <div class="form-text mt-2">
+                For safety, do not store full card numbers. This page stores only name, expiry, and last 4 digits.
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    bool isLoading = true;
+    string msg = "";
+
+    string userId = "";
+
+    List<PassengerCard> cards = new();
+
+    string newName = "";
+    string newLast4 = "";
+    int newMonth = DateTime.Now.Month;
+    int newYear = DateTime.Now.Year;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    async Task Load()
+    {
+        isLoading = true;
+        msg = "";
+
+        var auth = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(auth.User);
+
+        if (user == null)
+        {
+            msg = "User not found.";
+            isLoading = false;
+            return;
+        }
+
+        userId = user.Id;
+
+        cards = await db.PassengerCards
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.IsDefault)
+            .ThenByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    bool IsDigits(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        return s.All(char.IsDigit);
+    }
+
+    bool IsExpired(int month, int year)
+    {
+        // Expires at end of exp month
+        var now = DateTime.Now;
+        if (year < now.Year) return true;
+        if (year == now.Year && month < now.Month) return true;
+        return false;
+    }
+
+    async Task AddCard()
+    {
+        msg = "";
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            msg = "Cardholder name is required.";
+            return;
+        }
+
+        newLast4 = (newLast4 ?? "").Trim();
+        if (newLast4.Length != 4 || !IsDigits(newLast4))
+        {
+            msg = "Last 4 must be exactly 4 digits.";
+            return;
+        }
+
+        if (newMonth < 1 || newMonth > 12)
+        {
+            msg = "Expiry month must be 1 to 12.";
+            return;
+        }
+
+        if (newYear < DateTime.Now.Year || newYear > 2100)
+        {
+            msg = "Expiry year is not valid.";
+            return;
+        }
+
+        if (IsExpired(newMonth, newYear))
+        {
+            msg = "This card is already expired.";
+            return;
+        }
+
+        // First card becomes default
+        bool hasAny = await db.PassengerCards.AnyAsync(x => x.UserId == userId);
+
+        var card = new PassengerCard
+        {
+            UserId = userId,
+            CardholderName = newName.Trim(),
+            Last4 = newLast4,
+            ExpMonth = newMonth,
+            ExpYear = newYear,
+            IsDefault = !hasAny
+        };
+
+        db.PassengerCards.Add(card);
+        await db.SaveChangesAsync();
+
+        msg = "Card added.";
+
+        ClearForm();
+        await Load();
+    }
+
+    async Task MakeDefault(int id)
+    {
+        msg = "";
+
+        var list = await db.PassengerCards
+            .Where(x => x.UserId == userId)
+            .ToListAsync();
+
+        foreach (var c in list)
+        {
+            c.IsDefault = (c.PassengerCardId == id);
+        }
+
+        await db.SaveChangesAsync();
+        msg = "Default card updated.";
+
+        await Load();
+    }
+
+    async Task DeleteCard(int id)
+    {
+        msg = "";
+
+        var card = await db.PassengerCards
+            .FirstOrDefaultAsync(x => x.PassengerCardId == id && x.UserId == userId);
+
+        if (card == null)
+        {
+            msg = "Card not found.";
+            return;
+        }
+
+        bool wasDefault = card.IsDefault;
+
+        db.PassengerCards.Remove(card);
+        await db.SaveChangesAsync();
+
+        // If default removed, set newest remaining as default
+        if (wasDefault)
+        {
+            var next = await db.PassengerCards
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (next != null)
+            {
+                next.IsDefault = true;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        msg = "Card deleted.";
+        await Load();
+    }
+
+    void ClearForm()
+    {
+        newName = "";
+        newLast4 = "";
+        newMonth = DateTime.Now.Month;
+        newYear = DateTime.Now.Year;
+    }
+
+    void Back()
+    {
+        nav.NavigateTo("/passenger/home");
+    }
+}

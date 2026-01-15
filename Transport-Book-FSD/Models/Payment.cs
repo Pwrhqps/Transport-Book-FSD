@@ -5,8 +5,14 @@ namespace TransportBookFSD.Models
     public class Payment
     {
         public int PaymentId { get; set; }
-        public int BookingId { get; set; }
-        public decimal Amount { get; set; }
+
+        // Who paid (bind to Identity user)
+        [Required]
+        public string PassengerUserId { get; set; } = string.Empty;
+
+        // Transaction summary
+        public decimal TotalAmount { get; set; }
+        public int ItemCount { get; set; }
 
         [Required, StringLength(30)]
         public string Method { get; set; } = "Card";
@@ -14,7 +20,18 @@ namespace TransportBookFSD.Models
         [Required, StringLength(20)]
         public string Status { get; set; } = PaymentStatuses.Pending;
 
-        public DateTime PaymentDate { get; set; } = DateTime.Now;
+        [Required, StringLength(30)]
+        public string ReferenceNo { get; set; } = string.Empty;
+
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime? CompletedAt { get; set; }
+
+        // Optional mock receipt detail
+        [StringLength(4)]
+        public string? CardLast4 { get; set; }
+
+        // Navigation: one payment can cover many bookings
+        public List<Booking> Bookings { get; set; } = new();
 
         public static class PaymentStatuses
         {
@@ -25,17 +42,9 @@ namespace TransportBookFSD.Models
             public const string Cancelled = "Cancelled";
         }
 
-        [Required, StringLength(30)]
-        public string ReferenceNo { get; set; } = string.Empty;
+        public DateTime? ConfirmedAt { get; set; }
+        public string? ConfirmedByUserId { get; set; }
+        public string? ConfirmedByRole { get; set; } // "Driver" or "Staff"
 
-        public decimal TotalAmount { get; set; }
-
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-
-        public DateTime? CompletedAt { get; set; }
-
-        // Optional: save only last 4 digits (realistic, not full card)
-        [StringLength(4)]
-        public string? CardLast4 { get; set; }
     }
 }

@@ -29,6 +29,9 @@ namespace TransportBookFSD.Models
 
         public DateTime? AcceptedAt { get; set; }
 
+        public int? PaymentId { get; set; }
+        public Payment? Payment { get; set; }
+
         public bool IsPaid { get; set; }
         public DateTime? PaidAt { get; set; }
     }

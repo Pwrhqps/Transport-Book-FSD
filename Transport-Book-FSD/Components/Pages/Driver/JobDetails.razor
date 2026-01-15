@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @using TransportBookFSD.Data
 @using TransportBookFSD.Models
@@ -56,6 +57,36 @@ else
 
             <hr />
 
+            <!-- Payment status display + inline cash confirm -->
+            <div class="mb-3">
+                <div class="fw-bold mb-1">Payment</div>
+
+                @if (job.Payment == null)
+                {
+                    <div>Not created yet.</div>
+                    <div class="form-text">Passenger has not selected a payment method.</div>
+                }
+                else
+                {
+                    <div><b>Method:</b> @job.Payment.Method</div>
+                    <div><b>Status:</b> @job.Payment.Status</div>
+                    <div><b>Reference:</b> @job.Payment.ReferenceNo</div>
+                }
+
+                @if (IsPendingCash(job))
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <b>Cash payment pending confirmation.</b><br />
+                        Please confirm only after you have received the cash from the passenger.
+                        <div class="mt-2">
+                            <button class="btn btn-dark btn-sm" @onclick="ConfirmCashHere">
+                                Confirm Cash Received
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+
             @if (job.Status == "Accepted")
             {
                 <button class="btn btn-success me-2" @onclick="ConfirmFinishJob">
@@ -93,6 +124,14 @@ else
         return await userManager.GetUserAsync(authState.User);
     }
 
+    private bool IsPendingCash(Booking b)
+    {
+        return b.Payment != null
+            && b.Payment.Method == "Cash"
+            && b.Payment.Status == "Pending"
+            && !b.IsPaid;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
@@ -116,11 +155,13 @@ else
             return;
         }
 
-        // Phase B: ownership strictly by DriverUserId
-        job = db.Bookings.FirstOrDefault(b =>
-            b.BookingId == BookingId &&
-            b.DriverUserId == user.Id
-        );
+        // IMPORTANT: include Payment so we can show payment status + pending cash button
+        job = db.Bookings
+            .Include(b => b.Payment)
+            .FirstOrDefault(b =>
+                b.BookingId == BookingId &&
+                b.DriverUserId == user.Id
+            );
 
         if (job == null)
         {
@@ -154,7 +195,7 @@ else
         isLoading = false;
     }
 
-    // ✅ CONFIRMATION POPUP
+    // ✅ CONFIRMATION POPUP (Finish Job)
     private async Task ConfirmFinishJob()
     {
         if (job == null) return;
@@ -180,7 +221,7 @@ else
             return;
         }
 
-        // Reload from DB with ownership check (prevents tampering)
+        // Reload from DB with ownership check
         var b = db.Bookings.FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
         if (b == null)
         {
@@ -198,6 +239,78 @@ else
         await db.SaveChangesAsync();
 
         msg = "Job marked as completed.";
+        await Load();
+    }
+
+    // ✅ NEW: Confirm cash received directly inside Job Details
+    private async Task ConfirmCashHere()
+    {
+        if (job == null) return;
+
+        // Must be pending cash
+        if (!IsPendingCash(job))
+        {
+            msg = "No pending cash payment found for this booking.";
+            return;
+        }
+
+        var ok = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Confirm that you have received the cash from the passenger?"
+        );
+
+        if (!ok) return;
+
+        await ConfirmCash();
+    }
+
+    private async Task ConfirmCash()
+    {
+        msg = null;
+
+        var user = await GetCurrentUser();
+        if (user == null)
+        {
+            msg = "Please login again.";
+            return;
+        }
+
+        // Reload booking WITH payment
+        var b = db.Bookings
+            .Include(x => x.Payment)
+            .FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
+
+        if (b == null)
+        {
+            msg = "Booking not found.";
+            return;
+        }
+
+        if (b.Payment == null || b.Payment.Method != "Cash" || b.Payment.Status != "Pending" || b.IsPaid)
+        {
+            msg = "This cash payment is no longer pending.";
+            await Load();
+            return;
+        }
+
+        var now = DateTime.Now;
+
+        // Mark payment as succeeded
+        b.Payment.Status = "Succeeded";
+        b.Payment.CompletedAt = now;
+
+        // If you added these fields in Payment.cs (recommended)
+        // b.Payment.ConfirmedAt = now;
+        // b.Payment.ConfirmedByUserId = user.Id;
+        // b.Payment.ConfirmedByRole = "Driver";
+
+        // Mark this booking paid
+        b.IsPaid = true;
+        b.PaidAt = now;
+
+        await db.SaveChangesAsync();
+
+        msg = $"Cash confirmed. Ref: {b.Payment.ReferenceNo}";
         await Load();
     }
 

@@ -1,4 +1,5 @@
 ﻿@page "/passenger/profile"
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
@@ -10,9 +11,15 @@
 @inject AppDbContext db
 @inject UserManager<ApplicationUser> userManager
 @inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
 
 <h3>My Profile</h3>
 <p>Update your personal information.</p>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
 
 @if (isLoading)
 {
@@ -24,70 +31,125 @@ else
         <DataAnnotationsValidator />
         <ValidationSummary />
 
-        <div class="mb-3">
-            <label class="form-label">Full Name</label>
-            <InputText class="form-control" @bind-Value="profile.FullName" />
+        <!-- Personal Details -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Personal Details</h5>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Full Name</label>
+                    <InputText class="form-control" @bind-Value="profile.FullName" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Email</label>
+                    <input class="form-control" value="@email" disabled />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Gender</label>
+                    <InputSelect class="form-select" @bind-Value="profile.Gender">
+                        <option value="">-- Select --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Date of Birth</label>
+                    <InputDate class="form-control" @bind-Value="profile.DateOfBirth" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Residential Address</label>
+                    <InputText class="form-control" @bind-Value="profile.ResidentialAddress" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Emergency Contact</label>
+                    <InputText class="form-control" @bind-Value="profile.EmergencyContact" />
+                </div>
+            </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Contact Number</label>
-            <InputText class="form-control" @bind-Value="profile.ContactNumber" />
+        <!-- Phone Number (Verified by Password) -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Contact Number</h5>
+                <p class="text-muted mb-2">
+                    Changing your contact number requires your current password.
+                </p>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Contact Number (8 digits)</label>
+                    <input class="form-control" @bind="newPhone" placeholder="e.g. 91234567" />
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Current Password</label>
+                    <input class="form-control" type="password" @bind="currentPassword" />
+                </div>
+
+                <div class="form-text">
+                    This number is used for payment and account verification.
+                </div>
+            </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input class="form-control" value="@email" disabled />
+        <!-- Stats & Wallet -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Stats & Wallet</h5>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Total Completed Trips</label>
+                    <input class="form-control" value="@profile.TotalCompletedTrips" disabled />
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Transport Balance</label>
+                    <input class="form-control" value="@profile.TransportBalance.ToString("0.00")" disabled />
+                    <div class="form-text">Top up from Home. Used for ride payments.</div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">Cancellation Penalty Balance</label>
+                    <input class="form-control" value="@profile.CancellationPenaltyBalance.ToString("0.00")" disabled />
+                </div>
+
+                @if (profile.IsSuspended)
+                {
+                    <div class="alert alert-danger mt-3">
+                        <b>Account Suspended</b><br />
+                        Reason: @profile.SuspendedReason<br />
+                        @if (profile.SuspendedUntil != null)
+                        {
+                            <span>Until: @profile.SuspendedUntil.Value.ToString("dd MMM yyyy")</span>
+                        }
+                    </div>
+                }
+            </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Gender</label>
-            <InputSelect class="form-select" @bind-Value="profile.Gender">
-                <option value="">-- Select --</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-            </InputSelect>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Date of Birth</label>
-            <InputDate class="form-control" @bind-Value="profile.DateOfBirth" />
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Residential Address</label>
-            <InputText class="form-control" @bind-Value="profile.ResidentialAddress" />
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Emergency Contact</label>
-            <InputText class="form-control" @bind-Value="profile.EmergencyContact" />
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Total Completed Trips</label>
-            <input class="form-control" value="@profile.TotalCompletedTrips" disabled />
-            <div class="form-text">This increases automatically when a ride is completed.</div>
-            <p><b>Cancellation Penalty:</b> @profile.CancellationPenaltyBalance.ToString("0.00")</p>
-        </div>
-
-        <button type="submit" class="btn btn-dark">Update</button>
-
-        @if (!string.IsNullOrEmpty(message))
-        {
-            <span class="ms-3">@message</span>
-        }
+        <button type="submit" class="btn btn-dark">Update Profile</button>
+        <button type="button" class="btn btn-outline-dark ms-2" @onclick="Back">Back</button>
     </EditForm>
 }
 
 @code {
-    private PassengerProfile profile = new PassengerProfile();
-    private bool isLoading = true;
-    private string message = "";
-    private string email = "";
+    PassengerProfile profile = new PassengerProfile();
+    bool isLoading = true;
+    string msg = "";
+    string email = "";
+
+    // Phone update verification
+    string newPhone = "";
+    string currentPassword = "";
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
+        msg = "";
 
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
@@ -95,15 +157,14 @@ else
         var user = await userManager.GetUserAsync(principal);
         if (user == null)
         {
+            msg = "User not found.";
             isLoading = false;
-            message = "User not found.";
             return;
         }
 
         email = principal.FindFirstValue(ClaimTypes.Email) ?? user.Email ?? "";
 
         var existing = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
-
         if (existing == null)
         {
             profile = new PassengerProfile
@@ -116,7 +177,8 @@ else
                 ResidentialAddress = "",
                 EmergencyContact = "",
                 TotalCompletedTrips = 0,
-                ProfileImagePath = ""
+                TransportBalance = 0m,
+                CancellationPenaltyBalance = 0m
             };
 
             db.PassengerProfiles.Add(profile);
@@ -127,42 +189,84 @@ else
             profile = existing;
         }
 
+        newPhone = profile.ContactNumber;
         isLoading = false;
     }
 
-    private async Task SaveProfile()
+    bool IsValidSgPhone(string s)
     {
-        message = "";
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        s = s.Trim();
+        return s.Length == 8 && s.All(char.IsDigit);
+    }
+
+    async Task SaveProfile()
+    {
+        msg = "";
 
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
-
         var user = await userManager.GetUserAsync(principal);
+
         if (user == null)
         {
-            message = "User not found.";
+            msg = "User not found.";
             return;
         }
 
         var existing = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
         if (existing == null)
         {
-            message = "Profile not found.";
+            msg = "Profile not found.";
             return;
         }
 
-        // Update only editable fields
+        // Normal editable fields
         existing.FullName = profile.FullName;
-        existing.ContactNumber = profile.ContactNumber;
         existing.Gender = profile.Gender;
         existing.DateOfBirth = profile.DateOfBirth;
         existing.ResidentialAddress = profile.ResidentialAddress;
         existing.EmergencyContact = profile.EmergencyContact;
-        // TotalCompletedTrips stays unchanged
+
+        // Contact number change requires password
+        var oldPhone = existing.ContactNumber ?? "";
+        var newPhoneTrimmed = (newPhone ?? "").Trim();
+
+        if (newPhoneTrimmed != oldPhone)
+        {
+            if (!IsValidSgPhone(newPhoneTrimmed))
+            {
+                msg = "Contact number must be exactly 8 digits.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(currentPassword))
+            {
+                msg = "Please enter your current password to change contact number.";
+                return;
+            }
+
+            var ok = await userManager.CheckPasswordAsync(user, currentPassword);
+            if (!ok)
+            {
+                msg = "Incorrect password. Contact number not updated.";
+                return;
+            }
+
+            existing.ContactNumber = newPhoneTrimmed;
+            currentPassword = "";
+        }
 
         await db.SaveChangesAsync();
-        profile = existing;
 
-        message = "Profile updated.";
+        profile = existing;
+        newPhone = profile.ContactNumber;
+
+        msg = "Profile updated.";
+    }
+
+    void Back()
+    {
+        nav.NavigateTo("/passenger/home");
     }
 }
