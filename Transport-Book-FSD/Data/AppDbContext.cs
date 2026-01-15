@@ -24,6 +24,7 @@ namespace TransportBookFSD.Data
 
         public DbSet<Vehicle> Vehicles { get; set; }
         public DbSet<VehicleRental> VehicleRentals { get; set; }
+        public DbSet<DriverRatingViewModel> DriverRatingViewModel { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

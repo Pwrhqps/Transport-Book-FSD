@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TransportBookFSD.Data;
@@ -10,99 +8,61 @@ using TransportBookFSD.Models;
 
 namespace TransportBookFSD.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class DriverProfilesController : ControllerBase
     {
-        private readonly TransportBookFSDContext _context;
+        private readonly AppDbContext _context;
 
-        public DriverProfilesController(TransportBookFSDContext context)
+        public DriverProfilesController(AppDbContext context)
         {
             _context = context;
         }
 
-        // GET: api/DriverProfiles
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<DriverProfile>>> GetDriverProfile()
+        public async Task<ActionResult<IEnumerable<DriverProfile>>> GetDriverProfiles()
         {
-            return await _context.DriverProfile.ToListAsync();
+            return await _context.DriverProfiles.ToListAsync();
         }
 
-        // GET: api/DriverProfiles/5
         [HttpGet("{id}")]
         public async Task<ActionResult<DriverProfile>> GetDriverProfile(int id)
         {
-            var driverProfile = await _context.DriverProfile.FindAsync(id);
-
-            if (driverProfile == null)
-            {
-                return NotFound();
-            }
-
-            return driverProfile;
+            var profile = await _context.DriverProfiles.FindAsync(id);
+            if (profile == null) return NotFound();
+            return profile;
         }
 
-        // PUT: api/DriverProfiles/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutDriverProfile(int id, DriverProfile driverProfile)
+        [HttpPost]
+        public async Task<ActionResult<DriverProfile>> PostDriverProfile(DriverProfile profile)
         {
-            if (id != driverProfile.DriverProfileId)
-            {
-                return BadRequest();
-            }
+            _context.DriverProfiles.Add(profile);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetDriverProfile), new { id = profile.DriverProfileId }, profile);
+        }
 
-            _context.Entry(driverProfile).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutDriverProfile(int id, DriverProfile profile)
+        {
+            if (id != profile.DriverProfileId) return BadRequest();
+            _context.Entry(profile).State = EntityState.Modified;
+            try { await _context.SaveChangesAsync(); }
             catch (DbUpdateConcurrencyException)
             {
-                if (!DriverProfileExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                if (!_context.DriverProfiles.Any(e => e.DriverProfileId == id)) return NotFound();
+                throw;
             }
-
             return NoContent();
         }
 
-        // POST: api/DriverProfiles
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<DriverProfile>> PostDriverProfile(DriverProfile driverProfile)
-        {
-            _context.DriverProfile.Add(driverProfile);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetDriverProfile", new { id = driverProfile.DriverProfileId }, driverProfile);
-        }
-
-        // DELETE: api/DriverProfiles/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDriverProfile(int id)
         {
-            var driverProfile = await _context.DriverProfile.FindAsync(id);
-            if (driverProfile == null)
-            {
-                return NotFound();
-            }
-
-            _context.DriverProfile.Remove(driverProfile);
+            var profile = await _context.DriverProfiles.FindAsync(id);
+            if (profile == null) return NotFound();
+            _context.DriverProfiles.Remove(profile);
             await _context.SaveChangesAsync();
-
             return NoContent();
-        }
-
-        private bool DriverProfileExists(int id)
-        {
-            return _context.DriverProfile.Any(e => e.DriverProfileId == id);
         }
     }
 }

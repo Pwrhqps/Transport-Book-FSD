@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TransportBookFSD.Data;
@@ -10,99 +8,61 @@ using TransportBookFSD.Models;
 
 namespace TransportBookFSD.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class PassengerProfilesController : ControllerBase
     {
-        private readonly TransportBookFSDContext _context;
+        private readonly AppDbContext _context;
 
-        public PassengerProfilesController(TransportBookFSDContext context)
+        public PassengerProfilesController(AppDbContext context)
         {
             _context = context;
         }
 
-        // GET: api/PassengerProfiles
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PassengerProfile>>> GetPassengerProfile()
+        public async Task<ActionResult<IEnumerable<PassengerProfile>>> GetPassengerProfiles()
         {
-            return await _context.PassengerProfile.ToListAsync();
+            return await _context.PassengerProfiles.ToListAsync();
         }
 
-        // GET: api/PassengerProfiles/5
         [HttpGet("{id}")]
         public async Task<ActionResult<PassengerProfile>> GetPassengerProfile(int id)
         {
-            var passengerProfile = await _context.PassengerProfile.FindAsync(id);
-
-            if (passengerProfile == null)
-            {
-                return NotFound();
-            }
-
-            return passengerProfile;
+            var profile = await _context.PassengerProfiles.FindAsync(id);
+            if (profile == null) return NotFound();
+            return profile;
         }
 
-        // PUT: api/PassengerProfiles/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutPassengerProfile(int id, PassengerProfile passengerProfile)
+        [HttpPost]
+        public async Task<ActionResult<PassengerProfile>> PostPassengerProfile(PassengerProfile profile)
         {
-            if (id != passengerProfile.PassengerProfileId)
-            {
-                return BadRequest();
-            }
+            _context.PassengerProfiles.Add(profile);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetPassengerProfile), new { id = profile.PassengerProfileId }, profile);
+        }
 
-            _context.Entry(passengerProfile).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutPassengerProfile(int id, PassengerProfile profile)
+        {
+            if (id != profile.PassengerProfileId) return BadRequest();
+            _context.Entry(profile).State = EntityState.Modified;
+            try { await _context.SaveChangesAsync(); }
             catch (DbUpdateConcurrencyException)
             {
-                if (!PassengerProfileExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                if (!_context.PassengerProfiles.Any(e => e.PassengerProfileId == id)) return NotFound();
+                throw;
             }
-
             return NoContent();
         }
 
-        // POST: api/PassengerProfiles
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<PassengerProfile>> PostPassengerProfile(PassengerProfile passengerProfile)
-        {
-            _context.PassengerProfile.Add(passengerProfile);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetPassengerProfile", new { id = passengerProfile.PassengerProfileId }, passengerProfile);
-        }
-
-        // DELETE: api/PassengerProfiles/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePassengerProfile(int id)
         {
-            var passengerProfile = await _context.PassengerProfile.FindAsync(id);
-            if (passengerProfile == null)
-            {
-                return NotFound();
-            }
-
-            _context.PassengerProfile.Remove(passengerProfile);
+            var profile = await _context.PassengerProfiles.FindAsync(id);
+            if (profile == null) return NotFound();
+            _context.PassengerProfiles.Remove(profile);
             await _context.SaveChangesAsync();
-
             return NoContent();
-        }
-
-        private bool PassengerProfileExists(int id)
-        {
-            return _context.PassengerProfile.Any(e => e.PassengerProfileId == id);
         }
     }
 }

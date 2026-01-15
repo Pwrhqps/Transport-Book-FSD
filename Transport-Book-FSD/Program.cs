@@ -9,8 +9,7 @@ using TransportBookFSD.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDbContext<TransportBookFSDContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("TransportBookFSDContext") ?? throw new InvalidOperationException("Connection string 'TransportBookFSDContext' not found.")));
+
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddRazorComponents()
