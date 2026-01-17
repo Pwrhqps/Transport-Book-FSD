@@ -23,65 +23,96 @@
 {
     <p>Loading your jobs...</p>
 }
-else if (jobs.Count == 0)
-{
-    <p>You have no accepted jobs.</p>
-
-    <button class="btn btn-dark me-2" @onclick="GoAvailable">Go to Available Jobs</button>
-    <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
-}
 else
 {
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Pickup</th>
-                <th>Dropoff</th>
-                <th>Pickup Time</th>
-                <th>Status</th>
-                <th>Fare</th>
-                <th>Accepted At</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            @{
-                int row = 1;
-            }
-            @foreach (var j in jobs)
-            {
-                <tr>
-                    <td>@row</td>
-                    <td>@j.PickupLocation</td>
-                    <td>@j.DropoffLocation</td>
-                    <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
-                    <td>@j.Status</td>
-                    <td>@j.Fare.ToString("0.00")</td>
-                    <td>@(j.AcceptedAt.HasValue? j.AcceptedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(j.BookingId)">
-                            View
-                        </button>
-                    </td>
-                </tr>
-                row++;
-            }
-        </tbody>
-    </table>
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-bold">Filter by pickup date</label>
+                    <select class="form-select" @bind="dateFilter" @bind:event="onchange">
+                        <option value="All">All</option>
+                        <option value="Today">Today</option>
+                        <option value="Next7">Next 7 days</option>
+                        <option value="Next30">Next 30 days</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-8 text-md-end">
+                    <small class="text-muted">
+                        Showing @jobs.Count job(s)
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <button class="btn btn-outline-dark me-2" @onclick="GoAvailable">View Available Jobs</button>
-    <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    if (jobs.Count == 0)
+    {
+        <p>You have no accepted jobs for the selected filter.</p>
+
+        <button class="btn btn-dark me-2" @onclick="GoAvailable">Go to Available Jobs</button>
+        <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Pickup</th>
+                    <th>Dropoff</th>
+                    <th>Pickup Time</th>
+                    <th>Status</th>
+                    <th>Fare</th>
+                    <th>Accepted At</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    int row = 1;
+                }
+                @foreach (var j in jobs)
+                {
+                    <tr>
+                        <td>@row</td>
+                        <td>@j.PickupLocation</td>
+                        <td>@j.DropoffLocation</td>
+                        <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@j.Status</td>
+                        <td>@j.Fare.ToString("0.00")</td>
+                        <td>@(j.AcceptedAt.HasValue? j.AcceptedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(j.BookingId)">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                    row++;
+                }
+            </tbody>
+        </table>
+
+        <button class="btn btn-outline-dark me-2" @onclick="GoAvailable">View Available Jobs</button>
+        <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    }
 }
 
 @code {
     private bool isLoading = true;
+
+    private List<Booking> allJobs = new();
     private List<Booking> jobs = new();
+
     private string? msg;
+
+    // All | Today | Next7 | Next30
+    private string dateFilter = "All";
 
     protected override async Task OnInitializedAsync()
     {
         await LoadJobs();
+        ApplyFilter();
     }
 
     private void GoAvailable()
@@ -89,7 +120,6 @@ else
         nav.NavigateTo("/driver/jobs");
     }
 
-    // new button action
     private void GoCompletedJobs()
     {
         nav.NavigateTo("/driver/completedjobs");
@@ -110,7 +140,7 @@ else
             return;
         }
 
-        //ensures driver has a profile
+        // Optional: keep profile check (ensures driver has a profile)
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -119,14 +149,56 @@ else
             return;
         }
 
-        //show active jobs 
-        jobs = db.Bookings
+        // Only show ACTIVE jobs here (Accepted)
+        allJobs = db.Bookings
             .Where(b => b.DriverUserId == user.Id && b.Status == "Accepted")
             .OrderBy(b => b.PickupDateTime)
             .ThenBy(b => b.BookingId)
             .ToList();
 
         isLoading = false;
+    }
+
+    private void ApplyFilter()
+    {
+        // default
+        jobs = allJobs.ToList();
+
+        var now = DateTime.Now;
+
+        if (dateFilter == "Today")
+        {
+            var start = now.Date;
+            var end = start.AddDays(1);
+            jobs = allJobs
+                .Where(b => b.PickupDateTime >= start && b.PickupDateTime < end)
+                .ToList();
+        }
+        else if (dateFilter == "Next7")
+        {
+            var end = now.AddDays(7);
+            jobs = allJobs
+                .Where(b => b.PickupDateTime >= now && b.PickupDateTime <= end)
+                .ToList();
+        }
+        else if (dateFilter == "Next30")
+        {
+            var end = now.AddDays(30);
+            jobs = allJobs
+                .Where(b => b.PickupDateTime >= now && b.PickupDateTime <= end)
+                .ToList();
+        }
+    }
+
+    // called automatically when dropdown changes (because @bind:event="onchange")
+    private string DateFilter
+    {
+        get => dateFilter;
+        set
+        {
+            dateFilter = value;
+            ApplyFilter();
+        }
     }
 
     private void ViewJob(int bookingId)

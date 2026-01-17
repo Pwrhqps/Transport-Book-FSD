@@ -23,6 +23,11 @@ namespace TransportBookFSD.Models
         public DateTime? DateOfBirth { get; set; }
 
         public DateTime? InterviewDate { get; set; }
+        [StringLength(80)]
+        public string? PayoutCardName { get; set; }
+
+        [StringLength(4)]
+        public string? PayoutCardLast4 { get; set; }
 
         // Vehicle / license (basic for now)
         [StringLength(50)]
