@@ -1,0 +1,255 @@
+﻿@page "/driver/myschedule"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
+@attribute [Authorize(Roles = "Driver")]
+
+@inject AppDbContext db
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
+@inject NavigationManager nav
+
+<h3>My Schedule</h3>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading your schedule...</p>
+}
+else
+{
+    <div class="row g-2 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="fw-bold">Today</div>
+                    <div class="fs-4">@todayCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="fw-bold">Upcoming (Next 7 Days)</div>
+                    <div class="fs-4">@upcoming7Count</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="fw-bold">Completed (This Month)</div>
+                    <div class="fs-4">@completedThisMonthCount</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-bold">Time Range</label>
+                    <select class="form-select" @bind="timeRange" @bind:after="OnFiltersUpdated">
+                        <option value="Today">Today</option>
+                        <option value="Next7">Next 7 Days</option>
+                        <option value="Next30">Next 30 Days</option>
+                        <option value="All">All</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-bold">Status</label>
+                    <select class="form-select" @bind="statusFilter" @bind:after="OnFiltersUpdated">
+                        <option value="Accepted">Accepted</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="All">All</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <button class="btn btn-outline-dark w-100" @onclick="ResetFilters">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (filtered.Count == 0)
+    {
+        <p>No rides found for the selected filters.</p>
+        <button class="btn btn-dark" @onclick="GoAvailable">Go to Available Jobs</button>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Pickup</th>
+                    <th>Dropoff</th>
+                    <th>Pickup Time</th>
+                    <th>Status</th>
+                    <th>Fare</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    int row = 1;
+                }
+                @foreach (var b in filtered)
+                {
+                    <tr>
+                        <td>@row</td>
+                        <td>@b.PickupLocation</td>
+                        <td>@b.DropoffLocation</td>
+                        <td>@b.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@b.Status</td>
+                        <td>@b.Fare.ToString("0.00")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-dark" @onclick="() => ViewJob(b.BookingId)">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                    row++;
+                }
+            </tbody>
+        </table>
+
+        <button class="btn btn-outline-dark me-2" @onclick="GoMyJobs">My Jobs</button>
+        <button class="btn btn-outline-dark" @onclick="GoCompletedJobs">Completed Jobs</button>
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private string? msg;
+
+    private List<Booking> all = new();
+    private List<Booking> filtered = new();
+
+    // Defaults: schedule = upcoming accepted rides
+    private string timeRange = "Next7";
+    private string statusFilter = "Accepted";
+
+    private int todayCount;
+    private int upcoming7Count;
+    private int completedThisMonthCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        ApplyFilters();
+    }
+
+    private void GoAvailable() => nav.NavigateTo("/driver/jobs");
+    private void GoMyJobs() => nav.NavigateTo("/driver/myjobs");
+    private void GoCompletedJobs() => nav.NavigateTo("/driver/completedjobs");
+    private void ViewJob(int bookingId) => nav.NavigateTo($"/driver/job/{bookingId}");
+
+    private async Task Load()
+    {
+        isLoading = true;
+        msg = null;
+
+        var authState = await authStateProvider.GetAuthenticationStateAsync();
+        var user = await userManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            msg = "Unable to identify driver. Please login again.";
+            isLoading = false;
+            return;
+        }
+
+        // Optional: keep profile check (ensures driver has a profile)
+        var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
+        if (driver == null)
+        {
+            msg = "Driver profile not found.";
+            isLoading = false;
+            return;
+        }
+
+        all = db.Bookings
+            .Where(b => b.DriverUserId == user.Id)
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToList();
+
+        BuildSummaryCards();
+        isLoading = false;
+    }
+
+    private void BuildSummaryCards()
+    {
+        var today = DateTime.Today;
+        var next7 = today.AddDays(7);
+
+        todayCount = all.Count(b => b.PickupDateTime.Date == today && b.Status == "Accepted");
+        upcoming7Count = all.Count(b => b.PickupDateTime.Date >= today && b.PickupDateTime.Date <= next7 && b.Status == "Accepted");
+
+        var firstDayThisMonth = new DateTime(today.Year, today.Month, 1);
+        var firstDayNextMonth = firstDayThisMonth.AddMonths(1);
+        completedThisMonthCount = all.Count(b =>
+            b.Status == "Completed" &&
+            b.PickupDateTime >= firstDayThisMonth &&
+            b.PickupDateTime < firstDayNextMonth);
+    }
+
+    private Task OnFiltersUpdated()
+    {
+        ApplyFilters();
+        return Task.CompletedTask;
+    }
+
+    private void ResetFilters()
+    {
+        timeRange = "Next7";
+        statusFilter = "Accepted";
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<Booking> q = all;
+
+        // Status filter
+        if (statusFilter != "All")
+        {
+            q = q.Where(b => b.Status == statusFilter);
+        }
+
+        // Time range filter
+        var today = DateTime.Today;
+        if (timeRange == "Today")
+        {
+            q = q.Where(b => b.PickupDateTime.Date == today);
+        }
+        else if (timeRange == "Next7")
+        {
+            var end = today.AddDays(7);
+            q = q.Where(b => b.PickupDateTime.Date >= today && b.PickupDateTime.Date <= end);
+        }
+        else if (timeRange == "Next30")
+        {
+            var end = today.AddDays(30);
+            q = q.Where(b => b.PickupDateTime.Date >= today && b.PickupDateTime.Date <= end);
+        }
+        // All => no filter
+
+        filtered = q
+            .OrderBy(b => b.PickupDateTime)
+            .ThenBy(b => b.BookingId)
+            .ToList();
+    }
+}

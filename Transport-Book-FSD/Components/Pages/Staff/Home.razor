@@ -91,7 +91,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Uses real DbSets: DriverProfiles and Feedbacks
+        // Uses your real DbSets: DriverProfiles + Feedbacks
         pendingDrivers = await db.DriverProfiles.CountAsync(d => d.VerificationStatus == "Pending");
         totalUsers = await db.Users.CountAsync();
         lowRatedDrivers = await db.DriverProfiles.CountAsync(d => d.Rating < 3.0);

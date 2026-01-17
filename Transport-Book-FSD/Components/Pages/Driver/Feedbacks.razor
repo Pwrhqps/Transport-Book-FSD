@@ -100,7 +100,7 @@ else
             return;
         }
 
-        //ensures driver has a profile
+        // Optional: keep profile check (ensures driver has a profile)
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -109,7 +109,7 @@ else
             return;
         }
 
-        //Feedback linked only via Booking.DriverUserId
+        // Phase B: Feedback linked only via Booking.DriverUserId (Identity)
         items = (
             from f in db.Feedbacks
             join b in db.Bookings on f.BookingId equals b.BookingId
@@ -131,6 +131,7 @@ else
                 Dropoff = b.DropoffLocation,
                 PickupTime = b.PickupDateTime,
 
+                // Prefer PassengerProfiles name; fallback to Identity email
                 PassengerName =
                     (pp != null && !string.IsNullOrWhiteSpace(pp.FullName)) ? pp.FullName :
                     (u != null ? u.Email : null),

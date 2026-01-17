@@ -274,7 +274,7 @@ else
         db.PassengerCards.Remove(card);
         await db.SaveChangesAsync();
 
-        // If default removed, sets newest remaining as default
+        // If default removed, set newest remaining as default
         if (wasDefault)
         {
             var next = await db.PassengerCards

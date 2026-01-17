@@ -171,6 +171,7 @@ else
 
     private async Task ShowMessage(string text)
     {
+        // simple in-place feedback: could be replaced with a toast
         await JSRuntime.InvokeVoidAsync("alert", text);
     }
 }

@@ -158,7 +158,7 @@ else
 @code {
     private List<DriverRow> Drivers = new();
     private bool IsLoading = true;
-    private string SortOrder = "desc"; 
+    private string SortOrder = "desc"; // "desc" or "asc"
     private HashSet<int> ProcessingIds = new();
 
     // suspend modal state
@@ -188,7 +188,7 @@ else
 
         try
         {
-            //compute average rating per driver using Booking.DriverUserId (Identity)
+            // ✅ Phase B: compute average rating per driver using Booking.DriverUserId (Identity)
             var ratingsDict = await (
                 from f in db.Feedbacks
                 join b in db.Bookings on f.BookingId equals b.BookingId
@@ -202,7 +202,7 @@ else
 
             Drivers = drivers.Select(d =>
             {
-                //keeps whatever is stored in DriverProfile.Rating (if any)
+                // default: keep whatever is stored in DriverProfile.Rating (if any)
                 double rating = d.Rating;
 
                 if (!string.IsNullOrWhiteSpace(d.UserId) && ratingsDict.TryGetValue(d.UserId, out var avg))

@@ -137,6 +137,7 @@ else
             return;
         }
 
+        // Phase B: booking ownership strictly by DriverUserId
         booking = db.Bookings.FirstOrDefault(b =>
             b.BookingId == BookingId &&
             b.DriverUserId == user.Id
@@ -148,7 +149,7 @@ else
             return;
         }
 
-        //PassengerProfiles via PassengerUserId
+        // Customer details: PassengerProfiles via PassengerUserId
         if (!string.IsNullOrWhiteSpace(booking.PassengerUserId))
         {
             var pp = db.PassengerProfiles.FirstOrDefault(p => p.UserId == booking.PassengerUserId);
@@ -159,6 +160,7 @@ else
             }
         }
 
+        // Optional: fallback to AspNetUsers email if profile missing
         if (customerName == "-" && !string.IsNullOrWhiteSpace(booking.PassengerUserId))
         {
             var passengerUser = await userManager.FindByIdAsync(booking.PassengerUserId);

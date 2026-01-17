@@ -208,7 +208,7 @@ else
 
         if (fromDt.HasValue && toDt.HasValue && fromDt.Value > toDt.Value)
         {
-            // Swap automatically so user doesn't get empty results
+            // Swap automatically so user doesn't get "empty results" by mistake
             (fromDt, toDt) = (toDt, fromDt);
             filterMsg = "Note: From/To were swapped because From > To.";
         }
@@ -233,7 +233,7 @@ else
             "rating_desc" => baseQuery.OrderByDescending(x => x.f.Rating).ThenByDescending(x => x.f.CreatedAt),
             "rating_asc"  => baseQuery.OrderBy(x => x.f.Rating).ThenByDescending(x => x.f.CreatedAt),
             "date_asc"    => baseQuery.OrderBy(x => x.f.CreatedAt),
-            _             => baseQuery.OrderByDescending(x => x.f.CreatedAt),
+            _             => baseQuery.OrderByDescending(x => x.f.CreatedAt), // date_desc default
         };
 
         rows = await baseQuery
@@ -275,7 +275,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
 
-        // datetime-local format: "yyyy-MM-ddTHH:mm"
+        // datetime-local format is usually: "yyyy-MM-ddTHH:mm"
         if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt))
             return dt;
 

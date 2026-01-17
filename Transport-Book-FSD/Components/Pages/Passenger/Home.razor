@@ -64,7 +64,7 @@ else
         </div>
     </div>
 
-    <!-- Wallet and Top Up -->
+    <!-- Wallet + Top Up -->
     <div class="card mb-3">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
@@ -168,7 +168,7 @@ else
         profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
         if (profile == null)
         {
-            // create profile if missing
+            // create profile if missing (same behaviour as your Profile page)
             profile = new PassengerProfile
             {
                 UserId = user.Id,
@@ -277,7 +277,7 @@ else
 
         walletMsg = $"Top-up successful. Ref: {refNo}";
 
-        // refresh cards
+        // refresh cards/profile display values
         await Load();
     }
 }

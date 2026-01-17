@@ -137,7 +137,7 @@
             return;
         }
 
-        // Create DriverProfile
+        // Create DriverProfile so Staff page can see details
         if (form.Role == "Driver")
         {
             var exists = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
