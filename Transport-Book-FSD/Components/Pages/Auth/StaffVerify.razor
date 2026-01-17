@@ -1,9 +1,15 @@
 ﻿@page "/auth/staff-verify"
 @rendermode InteractiveServer
+@using TransportBookFSD.Models
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Caching.Memory
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Nav
+@inject IWebHostEnvironment env
+@inject IMemoryCache cache
+@inject UserManager<ApplicationUser> userManager
+@inject AuthenticationStateProvider authStateProvider
 
 <h3>Staff Verification</h3>
 
@@ -17,6 +23,22 @@
         <label class="form-label">Enter OTP</label>
         <input class="form-control" name="Code" />
         <div class="form-text">OTP expires in 3 minutes.</div>
+
+        @if (env.IsDevelopment() && !string.IsNullOrEmpty(DevOtp))
+        {
+            <div class="mt-2">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ToggleDevOtp">
+                    @(showDevOtp ? "Hide OTP" : "Show OTP (Dev)")
+                </button>
+
+                @if (showDevOtp)
+                {
+                    <div class="alert alert-warning mt-2">
+                        <b>DEV ONLY OTP:</b> @DevOtp
+                    </div>
+                }
+            </div>
+        }
     </div>
 
     <button type="submit" class="btn btn-dark">Verify</button>
@@ -24,6 +46,8 @@
 
 @code {
     private string? error;
+    private string? DevOtp;
+    private bool showDevOtp = false;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -32,7 +56,24 @@
         if (query.TryGetValue("error", out var v))
             error = v.ToString();
 
-        // Show OTP only in Development mode
-        
+        if (env.IsDevelopment())
+        {
+            var authState = await authStateProvider.GetAuthenticationStateAsync();
+            var user = await userManager.GetUserAsync(authState.User);
+
+            if (user != null)
+            {
+                cache.TryGetValue($"staff-otp:{user.Id}", out DevOtp);
+            }
+        }
+
+        // If OTP is missing/expired, ensure it stays hidden
+        if (string.IsNullOrEmpty(DevOtp))
+            showDevOtp = false;
+    }
+
+    private void ToggleDevOtp()
+    {
+        showDevOtp = !showDevOtp;
     }
 }

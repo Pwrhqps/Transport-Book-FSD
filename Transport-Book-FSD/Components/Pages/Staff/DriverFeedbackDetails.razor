@@ -1,0 +1,305 @@
+﻿@page "/staff/driverfeedbacks/{DriverUserId}"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
+@attribute [Authorize(Roles = "Staff")]
+
+@inject AppDbContext db
+@inject NavigationManager nav
+
+<h3>Driver Feedback Details</h3>
+
+<button class="btn btn-outline-dark mb-3" @onclick="Back">
+    Back to Drivers & Ratings
+</button>
+
+@if (!string.IsNullOrEmpty(msg))
+{
+    <div class="alert alert-info">@msg</div>
+}
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (driver == null)
+{
+    <p>Driver not found.</p>
+}
+else
+{
+    <!-- Driver summary -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="fw-bold">Driver</div>
+                    <div>@(driver.FullName ?? "-")</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="fw-bold">Driver UserId</div>
+                    <div>@DriverUserId</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="fw-bold">Vehicle Plate</div>
+                    <div>@(driver.VehiclePlate ?? "-")</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="fw-bold">Average Rating</div>
+                    <div>@avgRating.ToString("0.00")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-4">
+                    <label class="form-label fw-bold">Sort</label>
+                    <select class="form-select" @bind="sortMode">
+                        <option value="date_desc">Newest → Oldest</option>
+                        <option value="date_asc">Oldest → Newest</option>
+                        <option value="rating_desc">Rating High → Low</option>
+                        <option value="rating_asc">Rating Low → High</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-3 d-flex gap-2">
+                    <button class="btn btn-dark w-100" @onclick="ApplyFilters">
+                        Apply
+                    </button>
+                    <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(filterMsg))
+            {
+                <div class="text-muted mt-3">@filterMsg</div>
+            }
+        </div>
+    </div>
+
+    @if (rows.Count == 0)
+    {
+        <p>No feedback matches your filter.</p>
+    }
+    else
+    {
+        <!-- Feedback cards -->
+        @for (int i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i];
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-bold">Feedback #@(i + 1)</div>
+                            <div class="text-muted">
+                                Passenger: @(string.IsNullOrWhiteSpace(r.PassengerEmail) ? r.PassengerUserId : r.PassengerEmail)
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <div class="fw-bold">Booking #@r.BookingId</div>
+                            <div class="text-muted">@r.ReceiptRef</div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="mb-2">
+                        <span class="fw-bold">Rating:</span>
+                        <span>@r.Rating</span>
+                        <span class="ms-1">@GetStars(r.Rating)</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <span class="fw-bold">Comment:</span>
+                        <div class="mt-1">
+                            @(string.IsNullOrWhiteSpace(r.Comment) ? "-" : r.Comment)
+                        </div>
+                    </div>
+
+                    <div class="text-muted">
+                        <div><b>Submitted:</b> @r.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                        <div><b>Trip:</b> @r.Pickup → @r.Dropoff</div>
+                        <div><b>Fare:</b> @r.Fare.ToString("0.00")</div>
+                        <div><b>Paid At:</b> @(r.PaidAt.HasValue ? r.PaidAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string DriverUserId { get; set; } = string.Empty;
+
+    private bool isLoading = true;
+    private string? msg;
+
+    private DriverProfile? driver;
+    private double avgRating = 0.0;
+    private List<Row> rows = new();
+
+    // filter state
+    private string sortMode = "date_desc";
+    private DateTime? fromInput;
+    private DateTime? toInput;
+    private string? filterMsg;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private void Back()
+    {
+        nav.NavigateTo("/staff/driverfeedbacks");
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        msg = null;
+        rows.Clear();
+        avgRating = 0.0;
+
+        if (string.IsNullOrWhiteSpace(DriverUserId))
+        {
+            msg = "Invalid driver.";
+            isLoading = false;
+            return;
+        }
+
+        driver = await db.DriverProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.UserId == DriverUserId);
+
+        if (driver == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadRowsAsync();
+        isLoading = false;
+    }
+
+    private async Task LoadRowsAsync()
+    {
+        filterMsg = null;
+        rows.Clear();
+
+        var fromDt = fromInput;
+        var toDt = toInput;
+
+
+        if (fromDt.HasValue && toDt.HasValue && fromDt.Value > toDt.Value)
+        {
+            // Swap automatically so user doesn't get "empty results" by mistake
+            (fromDt, toDt) = (toDt, fromDt);
+            filterMsg = "Note: From/To were swapped because From > To.";
+        }
+
+        var baseQuery =
+            from f in db.Feedbacks
+            join b in db.Bookings on f.BookingId equals b.BookingId
+            where b.DriverUserId == DriverUserId
+            join u in db.Users on f.PassengerUserId equals u.Id into pu
+            from passengerUser in pu.DefaultIfEmpty()
+            select new { f, b, passengerUser };
+
+        if (fromDt.HasValue)
+            baseQuery = baseQuery.Where(x => x.f.CreatedAt >= fromDt.Value);
+
+        if (toDt.HasValue)
+            baseQuery = baseQuery.Where(x => x.f.CreatedAt <= toDt.Value);
+
+        // Sorting
+        baseQuery = sortMode switch
+        {
+            "rating_desc" => baseQuery.OrderByDescending(x => x.f.Rating).ThenByDescending(x => x.f.CreatedAt),
+            "rating_asc"  => baseQuery.OrderBy(x => x.f.Rating).ThenByDescending(x => x.f.CreatedAt),
+            "date_asc"    => baseQuery.OrderBy(x => x.f.CreatedAt),
+            _             => baseQuery.OrderByDescending(x => x.f.CreatedAt), // date_desc default
+        };
+
+        rows = await baseQuery
+            .Select(x => new Row
+            {
+                BookingId = x.b.BookingId,
+                PassengerUserId = x.f.PassengerUserId,
+                PassengerEmail = x.passengerUser != null ? x.passengerUser.Email : null,
+                Rating = x.f.Rating,
+                Comment = x.f.Comment,
+                CreatedAt = x.f.CreatedAt,
+                Pickup = x.b.PickupLocation,
+                Dropoff = x.b.DropoffLocation,
+                Fare = x.b.Fare,
+                PaidAt = x.b.PaidAt,
+                ReceiptRef = "RCP-" + x.b.PickupDateTime.ToString("yyyyMMdd") + "-" + x.b.BookingId.ToString("D4")
+            })
+            .AsNoTracking()
+            .ToListAsync();
+
+        avgRating = rows.Count > 0 ? rows.Average(r => r.Rating) : 0.0;
+    }
+
+    private async Task ApplyFilters()
+    {
+        await LoadRowsAsync();
+    }
+
+    private async Task ClearFilters()
+    {
+        sortMode = "date_desc";
+        fromInput = null;
+        toInput = null;
+        filterMsg = null;
+        await LoadRowsAsync();
+    }
+
+    private static DateTime? ParseLocal(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+
+        // datetime-local format is usually: "yyyy-MM-ddTHH:mm"
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt))
+            return dt;
+
+        return null;
+    }
+
+    private string GetStars(int rating)
+    {
+        if (rating <= 0) return "";
+        return new string('⭐', rating);
+    }
+
+    private class Row
+    {
+        public int BookingId { get; set; }
+        public string PassengerUserId { get; set; } = string.Empty;
+        public string? PassengerEmail { get; set; }
+        public int Rating { get; set; }
+        public string? Comment { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string Pickup { get; set; } = string.Empty;
+        public string Dropoff { get; set; } = string.Empty;
+        public decimal Fare { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public string ReceiptRef { get; set; } = string.Empty;
+    }
+}

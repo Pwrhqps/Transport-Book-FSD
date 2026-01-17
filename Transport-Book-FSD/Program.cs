@@ -90,6 +90,7 @@ app.MapPost("/auth/login-post", async (
         // generate 6-digit OTP
         var otp = Random.Shared.Next(0, 1000000).ToString("D6");
 
+
         cache.Set($"staff-otp:{user.Id}", otp, TimeSpan.FromMinutes(3));
         if (env.IsDevelopment())
         {
