@@ -129,7 +129,7 @@ else
             string role = "";
             if (await userManager.IsInRoleAsync(u, "Passenger")) role = "Passenger";
             else if (await userManager.IsInRoleAsync(u, "Driver")) role = "Driver";
-            else continue; // skip Staff and others
+            else continue;
 
             string displayName = u.Email ?? "";
             string phone = "";
@@ -142,7 +142,7 @@ else
                 phone = pp.ContactNumber;
             }
 
-            // Driver profile (ONLY if Approved)
+            // Driver profile (only if Approved)
             var dp = driverProfiles.FirstOrDefault(d => d.UserId == u.Id);
             if (role == "Driver")
             {

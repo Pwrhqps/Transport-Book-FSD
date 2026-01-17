@@ -57,7 +57,7 @@ else
 
             <hr />
 
-            <!-- Payment status display + inline cash confirm -->
+            <!-- Payment status display-->
             <div class="mb-3">
                 <div class="fw-bold mb-1">Payment</div>
 
@@ -155,7 +155,7 @@ else
             return;
         }
 
-        // IMPORTANT: include Payment so we can show payment status + pending cash button
+        //include Payment to show payment status and pending cash button
         job = db.Bookings
             .Include(b => b.Payment)
             .FirstOrDefault(b =>
@@ -180,7 +180,6 @@ else
             }
         }
 
-        // Optional: fallback to AspNetUsers email if profile missing
         if (customerName == "-" && !string.IsNullOrWhiteSpace(job.PassengerUserId))
         {
             var passengerUser = await userManager.FindByIdAsync(job.PassengerUserId);
@@ -195,7 +194,7 @@ else
         isLoading = false;
     }
 
-    // ✅ CONFIRMATION POPUP (Finish Job)
+    // Comfirmation pop up window
     private async Task ConfirmFinishJob()
     {
         if (job == null) return;
@@ -242,7 +241,7 @@ else
         await Load();
     }
 
-    // ✅ NEW: Confirm cash received directly inside Job Details
+    //Confirm cash received directly inside Job Details
     private async Task ConfirmCashHere()
     {
         if (job == null) return;
@@ -298,11 +297,6 @@ else
         // Mark payment as succeeded
         b.Payment.Status = "Succeeded";
         b.Payment.CompletedAt = now;
-
-        // If you added these fields in Payment.cs (recommended)
-        // b.Payment.ConfirmedAt = now;
-        // b.Payment.ConfirmedByUserId = user.Id;
-        // b.Payment.ConfirmedByRole = "Driver";
 
         // Mark this booking paid
         b.IsPaid = true;

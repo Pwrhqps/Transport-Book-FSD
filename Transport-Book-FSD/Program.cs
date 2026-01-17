@@ -32,7 +32,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.AddHttpContextAccessor();
 
-// ✅ Authorization + Blazor auth state
+// Authorization + Blazor auth state
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Staff2FA", policy =>
@@ -60,7 +60,6 @@ app.UseAuthorization();
 
 app.MapDefaultControllerRoute();
 
-// ✅ LOGIN endpoint (HTTP POST, so cookie can be written)
 app.MapPost("/auth/login-post", async (
     HttpContext http,
     SignInManager<ApplicationUser> signInManager,
@@ -113,7 +112,6 @@ app.MapPost("/auth/login-post", async (
     return Results.Redirect("/");
 }).DisableAntiforgery();
 
-// ✅ STAFF LOGIN endpoint (HTTP POST) - only Staff can login here
 app.MapPost("/auth/staff-login-post", async (
     HttpContext http,
     SignInManager<ApplicationUser> signInManager,
@@ -140,7 +138,6 @@ app.MapPost("/auth/staff-login-post", async (
 
 }).DisableAntiforgery();
 
-// ✅ LOGOUT endpoint (HTTP POST)
 app.MapPost("/auth/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(IdentityConstants.ApplicationScheme);
@@ -156,12 +153,12 @@ app.MapPost("/auth/staff-verify-post", async (
     var form = await http.Request.ReadFormAsync();
     var code = form["Code"].ToString();
 
-    // must be logged in already (from step 1 login)
+    //logged in 
     var user = await userManager.GetUserAsync(http.User);
     if (user == null)
         return Results.Redirect("/auth/login");
 
-    // must be staff
+    // staff
     if (!await userManager.IsInRoleAsync(user, "Staff"))
         return Results.Redirect("/auth/login");
 
@@ -171,10 +168,9 @@ app.MapPost("/auth/staff-verify-post", async (
     if (otp != code)
         return Results.Redirect("/auth/staff-verify?error=1");
 
-    // OTP correct -> remove it
+    // removes if OTP correct
     cache.Remove($"staff-otp:{user.Id}");
 
-    // re-issue cookie with Staff2FA claim
     await signInManager.SignOutAsync();
 
     var claims = new List<Claim>

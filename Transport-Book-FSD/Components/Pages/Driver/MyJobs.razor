@@ -110,7 +110,7 @@ else
             return;
         }
 
-        // Optional: keep profile check (ensures driver has a profile)
+        //ensures driver has a profile
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -119,7 +119,7 @@ else
             return;
         }
 
-        // Only show ACTIVE jobs here (Accepted)
+        //show active jobs 
         jobs = db.Bookings
             .Where(b => b.DriverUserId == user.Id && b.Status == "Accepted")
             .OrderBy(b => b.PickupDateTime)

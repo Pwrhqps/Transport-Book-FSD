@@ -209,7 +209,7 @@ else
             return;
         }
 
-        // IMPORTANT: confirm ALL bookings under this payment for THIS driver
+        //confirm all bookings under this payment for this driver
         var linked = await db.Bookings
             .Where(b => b.PaymentId == paymentId && b.DriverUserId == driver.Id && !b.IsPaid)
             .ToListAsync();
@@ -226,11 +226,6 @@ else
 
         payment.Status = "Succeeded";
         payment.CompletedAt = now;
-
-        // Optional fields if you added them:
-        // payment.ConfirmedAt = now;
-        // payment.ConfirmedByUserId = driver.Id;
-        // payment.ConfirmedByRole = "Driver";
 
         foreach (var b in linked)
         {

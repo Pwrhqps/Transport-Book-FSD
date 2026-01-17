@@ -190,7 +190,7 @@ else
             return;
         }
 
-        // Prevent double-accept / race condition
+        // Prevent double-accept
         if (booking.Status != "Pending" || !string.IsNullOrWhiteSpace(booking.DriverUserId))
         {
             msg = "This job is no longer available.";
@@ -198,7 +198,7 @@ else
             return;
         }
 
-        // Identity link only (Phase B)
+        // Identity link 
         booking.DriverUserId = user.Id;
 
         booking.Status = "Accepted";

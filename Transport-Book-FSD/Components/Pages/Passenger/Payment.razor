@@ -206,7 +206,7 @@ else
     string msg = "";
     string payError = "";
 
-    string paymentMethod = "Balance"; // "Balance" or "Cash"
+    string paymentMethod = "Balance";
 
     List<PayItem> items = new();
     List<Booking> pendingCashItems = new();
@@ -249,7 +249,7 @@ else
         profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
         transportBalance = profile?.TransportBalance ?? 0m;
 
-        // Outstanding = unpaid, not already in a pending cash payment
+        // Outstanding
         var outstanding = await db.Bookings
             .Include(b => b.Payment)
             .Where(b =>
@@ -393,8 +393,6 @@ else
         }
         else
         {
-            // CASH: split by DriverUserId (so each driver confirms their own cash)
-            // ALSO require DriverUserId to exist for completed rides.
             var invalid = selected.Where(b => b.Status == "Completed" && string.IsNullOrWhiteSpace(b.DriverUserId)).ToList();
             if (invalid.Count > 0)
             {
@@ -430,7 +428,7 @@ else
                 foreach (var b in list)
                 {
                     b.PaymentId = payment.PaymentId;
-                    // cash is pending: do NOT mark IsPaid here
+                    // cash is pending
                 }
 
                 await db.SaveChangesAsync();
