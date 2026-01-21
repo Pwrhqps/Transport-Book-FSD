@@ -140,7 +140,7 @@ else
                             </div>
 
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" @bind="chkContactValid" id="chk4" />
+                                <input class="form-check-input" type="checkbox" @bind="chkVehicleSafe" id="chk4" />
                                 <label class="form-check-label" for="chk4">Drivers vehicle is safe and reliable</label>
                             </div>
 
@@ -198,6 +198,8 @@ else
     private bool chkVehicleInfo;
     private bool chkContactValid;
     private bool chkInfoConsistent;
+    private bool chkVehicleSafe;
+
 
     private bool AllChecked =>
         chkLicenseClear &&

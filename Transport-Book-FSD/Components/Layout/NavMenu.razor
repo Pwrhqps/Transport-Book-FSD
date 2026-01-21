@@ -59,6 +59,16 @@
                     <div class="nav-item px-3"><NavLink class="nav-link" href="passenger/book">Book a Ride</NavLink></div>
                     <div class="nav-item px-3"><NavLink class="nav-link" href="passenger/mybookings">My Bookings</NavLink></div>
                     <div class="nav-item px-3"><NavLink class="nav-link" href="passenger/bookinghistory">History and Feedback</NavLink></div>
+
+                    <div class="nav-item px-3">
+                        <div class="nav-link" style="cursor: default;">@email</div>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <form method="post" action="/auth/logout">
+                            <button type="submit" class="nav-link btn btn-link">Logout</button>
+                        </form>
+                    </div>
                 }
 
                 @* ===== DRIVER ===== *@
@@ -81,27 +91,73 @@
 
                     <div class="nav-item px-3"><NavLink class="nav-link" href="driver/feedbacks">My Feedbacks</NavLink></div>
                     <div class="nav-item px-3"><NavLink class="nav-link" href="driver/vehicles">Rent A Vehicle</NavLink></div>
+
+                    <div class="nav-item px-3">
+                        <div class="nav-link" style="cursor: default;">@email</div>
+                    </div>
+
+                    <div class="nav-item px-3">
+                        <form method="post" action="/auth/logout">
+                            <button type="submit" class="nav-link btn btn-link">Logout</button>
+                        </form>
+                    </div>
                 }
 
                 @* ===== STAFF ===== *@
                 @if (auth.User.IsInRole("Staff"))
                 {
-                    <div class="nav-item px-3"><NavLink class="nav-link" href="staff/home">Staff Dashboard</NavLink></div>
-                    <div class="nav-item px-3"><NavLink class="nav-link" href="staff/manageusers">Manage Users</NavLink></div>
-                    <div class="nav-item px-3"><NavLink class="nav-link" href="staff/verifydrivers">Verify Drivers</NavLink></div>
-                    <div class="nav-item px-3"><NavLink class="nav-link" href="staff/driverfeedbacks">Driver Feedbacks</NavLink></div>
-                    <div class="nav-item px-3"><NavLink class="nav-link" href="staff/vehicles">Vehicle Creation</NavLink></div>
+                    @*Only show Staff menu after OTP verification (Policy Staff2FA) *@
+                    <AuthorizeView Policy="Staff2FA">
+                        <NotAuthorized>
+                            @* Show the same menu as login page *@
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                                    Home
+                                </NavLink>
+                            </div>
+
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="auth/login">
+                                    Login
+                                </NavLink>
+                            </div>
+
+                            <div class="nav-item px-3">
+                                <NavLink class="nav-link" href="auth/register">
+                                    Register
+                                </NavLink>
+                            </div>
+
+                            <div class="nav-item px-3">
+                                <div class="nav-link" style="cursor: default;">@email</div>
+                            </div>
+
+                            <div class="nav-item px-3">
+                                <form method="post" action="/auth/logout">
+                                    <button type="submit" class="nav-link btn btn-link">Logout</button>
+                                </form>
+                            </div>
+                        </NotAuthorized>
+
+                        <Authorized>
+                            <div class="nav-item px-3"><NavLink class="nav-link" href="staff/home">Staff Dashboard</NavLink></div>
+                            <div class="nav-item px-3"><NavLink class="nav-link" href="staff/manageusers">Manage Users</NavLink></div>
+                            <div class="nav-item px-3"><NavLink class="nav-link" href="staff/verifydrivers">Verify Drivers</NavLink></div>
+                            <div class="nav-item px-3"><NavLink class="nav-link" href="staff/driverfeedbacks">Driver Feedbacks</NavLink></div>
+                            <div class="nav-item px-3"><NavLink class="nav-link" href="staff/vehicles">Vehicle Creation</NavLink></div>
+
+                            <div class="nav-item px-3">
+                                <div class="nav-link" style="cursor: default;">@email</div>
+                            </div>
+
+                            <div class="nav-item px-3">
+                                <form method="post" action="/auth/logout">
+                                    <button type="submit" class="nav-link btn btn-link">Logout</button>
+                                </form>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
                 }
-
-                <div class="nav-item px-3">
-                    <div class="nav-link" style="cursor: default;">@email</div>
-                </div>
-
-                <div class="nav-item px-3">
-                    <form method="post" action="/auth/logout">
-                        <button type="submit" class="nav-link btn btn-link">Logout</button>
-                    </form>
-                </div>
             </Authorized>
 
         </AuthorizeView>

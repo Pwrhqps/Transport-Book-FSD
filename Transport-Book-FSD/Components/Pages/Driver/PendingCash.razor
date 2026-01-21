@@ -226,12 +226,6 @@ else
 
         payment.Status = "Succeeded";
         payment.CompletedAt = now;
-
-        // Optional fields if you added them:
-        // payment.ConfirmedAt = now;
-        // payment.ConfirmedByUserId = driver.Id;
-        // payment.ConfirmedByRole = "Driver";
-
         foreach (var b in linked)
         {
             b.IsPaid = true;
@@ -248,8 +242,9 @@ else
 
     void OpenJob(int id)
     {
-        nav.NavigateTo($"/driver/job/{id}");
+        nav.NavigateTo($"/driver/job/{id}?returnUrl={Uri.EscapeDataString("/driver/pending-cash")}");
     }
+
 
     void Back()
     {

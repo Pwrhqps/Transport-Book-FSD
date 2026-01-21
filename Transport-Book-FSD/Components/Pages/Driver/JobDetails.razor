@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components
 @using TransportBookFSD.Data
 @using TransportBookFSD.Models
 @attribute [Authorize(Roles = "Driver")]
@@ -122,6 +123,18 @@ else
 @code {
     [Parameter] public int BookingId { get; set; }
 
+    [Parameter, SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private void Back()
+    {
+        nav.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl)
+            ? "/driver/myjobs"
+            : ReturnUrl);
+    }
+
+
+
     private bool isLoading = true;
     private string? msg;
 
@@ -145,8 +158,8 @@ else
             && !b.IsPaid;
     }
 
-    // - must be after pickup datetime
-    // - must NOT have pending cash (driver must confirm cash first)
+    // must be after pickup datetime
+    // must not have pending cash (driver must confirm cash first)
     private bool CanFinishJob
     {
         get
@@ -299,7 +312,7 @@ else
         await Load();
     }
 
-    // ✅ NEW: Confirm cash received directly inside Job Details
+    //Confirm cash received directly inside Job Details
     private async Task ConfirmCashHere()
     {
         if (job == null) return;
@@ -355,11 +368,6 @@ else
         b.Payment.Status = "Succeeded";
         b.Payment.CompletedAt = now;
 
-        // If you added these fields in Payment.cs (recommended)
-        // b.Payment.ConfirmedAt = now;
-        // b.Payment.ConfirmedByUserId = user.Id;
-        // b.Payment.ConfirmedByRole = "Driver";
-
         // Mark this booking paid
         b.IsPaid = true;
         b.PaidAt = now;
@@ -373,10 +381,5 @@ else
     private void ViewFeedback()
     {
         nav.NavigateTo($"/driver/feedback/{BookingId}");
-    }
-
-    private void Back()
-    {
-        nav.NavigateTo("/driver/myjobs");
     }
 }
