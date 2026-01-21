@@ -57,7 +57,6 @@ else
 
             <hr />
 
-            <!-- Payment status display + inline cash confirm -->
             <div class="mb-3">
                 <div class="fw-bold mb-1">Payment</div>
 
@@ -89,9 +88,23 @@ else
 
             @if (job.Status == "Accepted")
             {
-                <button class="btn btn-success me-2" @onclick="ConfirmFinishJob">
+                <button class="btn btn-success me-2" @onclick="ConfirmFinishJob" disabled="@(!CanFinishJob)">
                     Finish Job
                 </button>
+
+                @if (job.PickupDateTime > DateTime.Now)
+                {
+                    <div class="alert alert-warning mt-2 mb-0">
+                        You cannot finish this job before the pickup time:
+                        <b>@job.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</b>
+                    </div>
+                }
+                else if (IsPendingCash(job))
+                {
+                    <div class="alert alert-warning mt-2 mb-0">
+                        You must confirm <b>cash received</b> before finishing this job.
+                    </div>
+                }
             }
 
             @if (feedback != null)
@@ -132,6 +145,19 @@ else
             && !b.IsPaid;
     }
 
+    // - must be after pickup datetime
+    // - must NOT have pending cash (driver must confirm cash first)
+    private bool CanFinishJob
+    {
+        get
+        {
+            return job != null
+                && job.Status == "Accepted"
+                && job.PickupDateTime <= DateTime.Now
+                && !IsPendingCash(job);
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await Load();
@@ -155,7 +181,7 @@ else
             return;
         }
 
-        // IMPORTANT: include Payment so we can show payment status + pending cash button
+        //Include Payment so we can show payment status + pending cash button
         job = db.Bookings
             .Include(b => b.Payment)
             .FirstOrDefault(b =>
@@ -195,10 +221,24 @@ else
         isLoading = false;
     }
 
-    // ✅ CONFIRMATION POPUP (Finish Job)
+    //CONFIRMATION POPUP (Finish Job)
     private async Task ConfirmFinishJob()
     {
         if (job == null) return;
+
+        // extra guard (even though button is disabled)
+        if (!CanFinishJob)
+        {
+            if (job.PickupDateTime > DateTime.Now)
+            {
+                msg = "You cannot finish this job before the scheduled pickup time.";
+            }
+            else if (IsPendingCash(job))
+            {
+                msg = "Please confirm cash received before finishing this job.";
+            }
+            return;
+        }
 
         var ok = await JS.InvokeAsync<bool>(
             "confirm",
@@ -221,8 +261,11 @@ else
             return;
         }
 
-        // Reload from DB with ownership check
-        var b = db.Bookings.FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
+        // Reload from DB WITH payment + ownership check
+        var b = db.Bookings
+            .Include(x => x.Payment)
+            .FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
+
         if (b == null)
         {
             msg = "Job not found.";
@@ -232,6 +275,20 @@ else
         if (b.Status != "Accepted")
         {
             msg = "Only accepted jobs can be completed.";
+            return;
+        }
+
+        //cannot finish before pickup datetime
+        if (b.PickupDateTime > DateTime.Now)
+        {
+            msg = "You cannot finish this job before the scheduled pickup time.";
+            return;
+        }
+
+        //if cash is pending, driver must confirm cash first
+        if (IsPendingCash(b))
+        {
+            msg = "Please confirm cash received before finishing this job.";
             return;
         }
 
@@ -247,7 +304,6 @@ else
     {
         if (job == null) return;
 
-        // Must be pending cash
         if (!IsPendingCash(job))
         {
             msg = "No pending cash payment found for this booking.";
