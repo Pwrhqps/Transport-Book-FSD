@@ -161,13 +161,14 @@ else
 
     private void ApplyFilter()
     {
-        // default
+        // Start by showing all accepted jobs by default.
         jobs = allJobs.ToList();
 
         var now = DateTime.Now;
 
         if (dateFilter == "Today")
         {
+            // "Today" means from 00:00 of the current day until just before tomorrow
             var start = now.Date;
             var end = start.AddDays(1);
             jobs = allJobs
@@ -176,6 +177,7 @@ else
         }
         else if (dateFilter == "Next7")
         {
+            // Shows jobs scheduled from now up to the next 7 days
             var end = now.AddDays(7);
             jobs = allJobs
                 .Where(b => b.PickupDateTime >= now && b.PickupDateTime <= end)
@@ -183,6 +185,7 @@ else
         }
         else if (dateFilter == "Next30")
         {
+            // Shows upcoming jobs within the next 30 days for longer-term planning
             var end = now.AddDays(30);
             jobs = allJobs
                 .Where(b => b.PickupDateTime >= now && b.PickupDateTime <= end)

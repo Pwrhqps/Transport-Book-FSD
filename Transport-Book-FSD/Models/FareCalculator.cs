@@ -1,11 +1,15 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Rewrite;
+using System;
 using System.Collections.Generic;
 
 namespace TransportBookFSD.Models
 {
+    // Calculates an estimated ride fare based on pickup/dropoff text + pickup time
+    // (simple rule-based calculator, not real-world pricing)
     public static class FareCalculator
     {
-        // Rough coordinates (lat, lon) for common areas in SG
+        // Rough coordinates (lat, lon) for common areas in Singapore
+        // Used to estimate distance when users type place names
         private static readonly Dictionary<string, (double lat, double lon)> Areas = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Bedok"] = (1.3236, 103.9273),
@@ -31,9 +35,10 @@ namespace TransportBookFSD.Models
             decimal baseFare = 4.50m;
             decimal perKm = 1.00m;
 
+            // Estimate distance using area coordinates
             double km = EstimateDistanceKm(pickup, dropoff);
 
-            // If location not recognized, assume a default mid distance
+            // If location not recognized, assume a default distance
             if (km <= 0.1) km = 8.0;
 
             decimal fare = baseFare + (decimal)km * perKm;
@@ -44,7 +49,7 @@ namespace TransportBookFSD.Models
             bool isPeak = (hour >= 7 && hour < 10) || (hour >= 17 && hour < 21);
             if (isPeak) fare *= 1.25m;
 
-            // Weekend surcharge (simple substitute for public holiday at first)
+            // Weekend surcharge (simple substitute for public holiday)
             bool isWeekend = pickupDateTime.DayOfWeek == DayOfWeek.Saturday ||
                              pickupDateTime.DayOfWeek == DayOfWeek.Sunday;
             if (isWeekend) fare *= 1.10m;
@@ -58,6 +63,7 @@ namespace TransportBookFSD.Models
             if (!TryGetPoint(pickup, out var p1)) return 0;
             if (!TryGetPoint(dropoff, out var p2)) return 0;
 
+            // Calculate distance using Haversine formula
             return HaversineKm(p1.lat, p1.lon, p2.lat, p2.lon);
         }
 
@@ -65,7 +71,7 @@ namespace TransportBookFSD.Models
         {
             input = (input ?? "").Trim();
 
-            // Exact match first
+            // Try exact match first (e.g. "Bedok")
             if (Areas.TryGetValue(input, out point)) return true;
 
             // Try contains match (e.g. "Bedok Reservoir" contains "Bedok")
@@ -78,13 +84,16 @@ namespace TransportBookFSD.Models
                 }
             }
 
+            // Not recognized
             point = default;
             return false;
         }
 
         private static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
         {
-            const double R = 6371; // km
+            // Calculated Earth (great-circle) distance because pickup and dropoff locations
+            // are given as latitude and longitude on a curved Earth, not on a flat map.
+            const double R = 6371; // Earth radius in km
             double dLat = ToRad(lat2 - lat1);
             double dLon = ToRad(lon2 - lon1);
 
@@ -96,6 +105,7 @@ namespace TransportBookFSD.Models
             return R * c;
         }
 
+        // Convert degrees to radians
         private static double ToRad(double deg) => deg * (Math.PI / 180.0);
     }
 }

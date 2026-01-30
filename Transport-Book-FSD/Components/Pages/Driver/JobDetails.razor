@@ -75,6 +75,7 @@ else
 
                 @if (IsPendingCash(job))
                 {
+                    @* Cash is "Pending" until driver confirms they received the cash *@
                     <div class="alert alert-warning mt-3 mb-0">
                         <b>Cash payment pending confirmation.</b><br />
                         Please confirm only after you have received the cash from the passenger.
@@ -89,6 +90,7 @@ else
 
             @if (job.Status == "Accepted")
             {
+                @* Finish Job is blocked if pickup time not reached OR cash not confirmed *@
                 <button class="btn btn-success me-2" @onclick="ConfirmFinishJob" disabled="@(!CanFinishJob)">
                     Finish Job
                 </button>
@@ -128,12 +130,11 @@ else
 
     private void Back()
     {
+        // returnUrl -> allows page to return to where driver came from
         nav.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl)
             ? "/driver/myjobs"
             : ReturnUrl);
     }
-
-
 
     private bool isLoading = true;
     private string? msg;
@@ -152,18 +153,21 @@ else
 
     private bool IsPendingCash(Booking b)
     {
+        // Pending cash = passenger chose cash, payment still pending, booking not marked paid yet
         return b.Payment != null
             && b.Payment.Method == "Cash"
             && b.Payment.Status == "Pending"
             && !b.IsPaid;
     }
 
-    // must be after pickup datetime
-    // must not have pending cash (driver must confirm cash first)
     private bool CanFinishJob
     {
         get
         {
+            // Finish rules:
+            // 1) job must be Accepted
+            // 2) pickup time must have started/passed
+            // 3) cash (if any) must be confirmed first
             return job != null
                 && job.Status == "Accepted"
                 && job.PickupDateTime <= DateTime.Now
@@ -194,7 +198,8 @@ else
             return;
         }
 
-        //Include Payment so we can show payment status + pending cash button
+        // Include(Payment) -> needto show payment info and check pending cash
+        // DriverUserId check -> driver can only view their own job
         job = db.Bookings
             .Include(b => b.Payment)
             .FirstOrDefault(b =>
@@ -208,7 +213,7 @@ else
             return;
         }
 
-        // Customer details: PassengerProfiles via PassengerUserId
+        // Get customer name/contact from PassengerProfiles (fallback to user email if missing)
         if (!string.IsNullOrWhiteSpace(job.PassengerUserId))
         {
             var pp = db.PassengerProfiles.FirstOrDefault(p => p.UserId == job.PassengerUserId);
@@ -219,7 +224,6 @@ else
             }
         }
 
-        // Optional: fallback to AspNetUsers email if profile missing
         if (customerName == "-" && !string.IsNullOrWhiteSpace(job.PassengerUserId))
         {
             var passengerUser = await userManager.FindByIdAsync(job.PassengerUserId);
@@ -229,17 +233,17 @@ else
             }
         }
 
+        // feedback is optional (only exists if passenger submitted)
         feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == job.BookingId);
 
         isLoading = false;
     }
 
-    //CONFIRMATION POPUP (Finish Job)
     private async Task ConfirmFinishJob()
     {
         if (job == null) return;
 
-        // extra guard (even though button is disabled)
+        // Extra guard even if button is disabled
         if (!CanFinishJob)
         {
             if (job.PickupDateTime > DateTime.Now)
@@ -274,7 +278,7 @@ else
             return;
         }
 
-        // Reload from DB WITH payment + ownership check
+        // Reload from DB -> ensures latest status/payment before updating
         var b = db.Bookings
             .Include(x => x.Payment)
             .FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
@@ -291,14 +295,12 @@ else
             return;
         }
 
-        //cannot finish before pickup datetime
         if (b.PickupDateTime > DateTime.Now)
         {
             msg = "You cannot finish this job before the scheduled pickup time.";
             return;
         }
 
-        //if cash is pending, driver must confirm cash first
         if (IsPendingCash(b))
         {
             msg = "Please confirm cash received before finishing this job.";
@@ -312,7 +314,6 @@ else
         await Load();
     }
 
-    //Confirm cash received directly inside Job Details
     private async Task ConfirmCashHere()
     {
         if (job == null) return;
@@ -344,7 +345,7 @@ else
             return;
         }
 
-        // Reload booking WITH payment
+        // Reload booking with payment
         var b = db.Bookings
             .Include(x => x.Payment)
             .FirstOrDefault(x => x.BookingId == BookingId && x.DriverUserId == user.Id);
@@ -355,6 +356,7 @@ else
             return;
         }
 
+        // Must still be pending cash, otherwise block double confirm
         if (b.Payment == null || b.Payment.Method != "Cash" || b.Payment.Status != "Pending" || b.IsPaid)
         {
             msg = "This cash payment is no longer pending.";
@@ -364,11 +366,10 @@ else
 
         var now = DateTime.Now;
 
-        // Mark payment as succeeded
+        // Cash confirm -> mark payment succeeded and booking paid
         b.Payment.Status = "Succeeded";
         b.Payment.CompletedAt = now;
 
-        // Mark this booking paid
         b.IsPaid = true;
         b.PaidAt = now;
 

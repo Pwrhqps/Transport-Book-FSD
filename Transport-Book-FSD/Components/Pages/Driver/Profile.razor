@@ -81,24 +81,30 @@ else
 @code {
     private DriverProfile profile = new();
     private bool isLoading = true;
+
+    // Logged-in Identity user (Driver)
     private ApplicationUser? user;
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
 
+        // Retrieve the currently authenticated user from Identity
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         user = await userManager.GetUserAsync(authState.User);
 
         if (user != null)
         {
+            // Check if a DriverProfile already exists for this user
             var existing = db.DriverProfiles.FirstOrDefault(p => p.UserId == user.Id);
             if (existing != null)
             {
+                // Existing profile found → load it for display/editing
                 profile = existing;
             }
             else
             {
+                // No profile yet → auto-create one to ensure every driver has a profile
                 profile = new DriverProfile
                 {
                     UserId = user.Id,

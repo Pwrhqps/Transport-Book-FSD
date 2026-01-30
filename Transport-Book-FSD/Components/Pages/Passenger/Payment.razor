@@ -194,8 +194,10 @@ else
 }
 
 @code {
+    // Optional preselect booking ID from URL: if provided, auto-select that booking in the payment list
     [Parameter] public int? PreselectId { get; set; }
 
+    // Booking data + checkbox state for multi-select payment
     class PayItem
     {
         public Booking Booking { get; set; } = new Booking();
@@ -216,17 +218,19 @@ else
 
     List<PaymentModel> lastPayments = new();
 
-    int SelectedCount => items.Count(x => x.IsSelected);
-    decimal SelectedTotal => items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare);
-    bool CanPay => SelectedCount > 0 && SelectedTotal > 0m;
+    int SelectedCount => items.Count(x => x.IsSelected); // number of checked items
+    decimal SelectedTotal => items.Where(x => x.IsSelected).Sum(x => x.Booking.Fare); // sum of fares selected
+    bool CanPay => SelectedCount > 0 && SelectedTotal > 0m;  // enable Pay button
 
     protected override async Task OnInitializedAsync()
     {
+        // Load all payment page data
         await LoadAll();
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        // Reload if URL parameter changes
         await LoadAll();
     }
 
@@ -237,6 +241,7 @@ else
         payError = "";
         lastPayments = new();
 
+        // Identify current passenger
         var auth = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(auth.User);
         if (user == null)
@@ -246,6 +251,7 @@ else
             return;
         }
 
+        // Load wallet balance for display and balance-payment validation
         profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
         transportBalance = profile?.TransportBalance ?? 0m;
 
@@ -265,8 +271,10 @@ else
             .ThenBy(b => b.BookingId)
             .ToListAsync();
 
+        // Convert bookings into selectable UI items
         items = outstanding.Select(b => new PayItem { Booking = b }).ToList();
 
+        // Shows bookings already awaiting driver cash confirmation
         pendingCashItems = await db.Bookings
             .Include(b => b.Payment)
             .Where(b =>
@@ -280,6 +288,7 @@ else
             .ThenBy(b => b.BookingId)
             .ToListAsync();
 
+        // Auto-select booking when coming from My Bookings
         if (PreselectId != null)
         {
             var target = items.FirstOrDefault(x => x.Booking.BookingId == PreselectId.Value);
@@ -302,6 +311,7 @@ else
 
     string MakeRef()
     {
+        // Generate unique reference number for Payment / WalletTransaction
         return "TP" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
     }
 
@@ -311,6 +321,7 @@ else
         msg = "";
         lastPayments = new();
 
+        // Collect selected bookings
         var selected = items.Where(x => x.IsSelected).Select(x => x.Booking).ToList();
         if (selected.Count == 0)
         {
@@ -318,6 +329,7 @@ else
             return;
         }
 
+        // Validate total amount
         var totalAll = selected.Sum(b => b.Fare);
         if (totalAll <= 0m)
         {
@@ -325,6 +337,7 @@ else
             return;
         }
 
+        // Re-check passenger identity
         var auth = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(auth.User);
         if (user == null)
@@ -333,6 +346,7 @@ else
             return;
         }
 
+        // Load profile for wallet operations (Balance payment)
         profile = await db.PassengerProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
         if (profile == null)
         {
@@ -344,13 +358,14 @@ else
 
         if (paymentMethod == "Balance")
         {
+            // Balance payment requires sufficient TransportBalance
             if (profile.TransportBalance < totalAll)
             {
                 payError = "Insufficient transport balance. Please top up from Home.";
                 return;
             }
 
-            // One payment record for balance
+            // Create ONE succeeded payment record for all selected items
             var refNo = MakeRef();
 
             var payment = new PaymentModel
@@ -368,6 +383,7 @@ else
             db.Payments.Add(payment);
             await db.SaveChangesAsync();
 
+            // Link each booking to the payment and mark as paid
             foreach (var b in selected)
             {
                 b.PaymentId = payment.PaymentId;
@@ -375,8 +391,10 @@ else
                 b.PaidAt = now;
             }
 
+            // Deduct wallet balance
             profile.TransportBalance -= totalAll;
 
+            // Record wallet transaction for history
             db.WalletTransactions.Add(new WalletTransaction
             {
                 UserId = user.Id,
@@ -393,8 +411,7 @@ else
         }
         else
         {
-            // CASH: split by DriverUserId (so each driver confirms their own cash)
-            // ALSO require DriverUserId to exist for completed rides.
+            // Completed rides must have a driver for cash confirmation
             var invalid = selected.Where(b => b.Status == "Completed" && string.IsNullOrWhiteSpace(b.DriverUserId)).ToList();
             if (invalid.Count > 0)
             {
@@ -402,6 +419,7 @@ else
                 return;
             }
 
+            // Split by DriverUserId so each driver confirms only their own cash payment
             var groups = selected
                 .GroupBy(b => string.IsNullOrWhiteSpace(b.DriverUserId) ? "NO_DRIVER" : b.DriverUserId!)
                 .ToList();
@@ -413,6 +431,7 @@ else
 
                 var refNo = MakeRef();
 
+                // Create a Pending cash payment for this driver
                 var payment = new PaymentModel
                 {
                     PassengerUserId = user.Id,
@@ -425,7 +444,7 @@ else
                 };
 
                 db.Payments.Add(payment);
-                await db.SaveChangesAsync();
+                await db.SaveChangesAsync(); // get payment id
 
                 foreach (var b in list)
                 {

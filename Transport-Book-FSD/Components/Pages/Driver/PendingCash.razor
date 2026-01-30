@@ -111,8 +111,8 @@ else
         public List<Booking> Bookings { get; set; } = new();
     }
 
-    bool isLoading = true;
-    bool isWorking = false;
+    bool isLoading = true;  //controls loading UI while fetching data
+    bool isWorking = false; //prevents double-click
     string msg = "";
 
     List<Group> groups = new();
@@ -133,6 +133,7 @@ else
         isLoading = true;
         msg = "";
 
+        // Security: if user identity cannot be obtained, stop and ask them to login again
         var driver = await GetCurrentUser();
         if (driver == null)
         {
@@ -141,7 +142,8 @@ else
             return;
         }
 
-        // Get all bookings for this driver with Pending cash payments
+        // Get only bookings belonging to THIS driver that are unpaid AND tied to a cash payment
+        // with "Pending" status.
         var bookings = await db.Bookings
             .Include(b => b.Payment)
             .Where(b =>
@@ -157,6 +159,7 @@ else
             .ThenBy(b => b.BookingId)
             .ToListAsync();
 
+        // Group bookings by PaymentId so driver confirms cash once per payment reference
         groups = bookings
             .GroupBy(b => b.PaymentId!.Value)
             .Select(g => new Group
@@ -172,6 +175,7 @@ else
 
     async Task ConfirmPayment(int paymentId)
     {
+        // Prevent double submission
         if (isWorking) return;
 
         var ok = await JS.InvokeAsync<bool>(
@@ -184,6 +188,7 @@ else
         isWorking = true;
         msg = "";
 
+        // Re-check logged-in user before updating DB
         var driver = await GetCurrentUser();
         if (driver == null)
         {
@@ -192,7 +197,7 @@ else
             return;
         }
 
-        // Load payment (basic validation)
+        // Load payment record for validation
         var payment = await db.Payments.FirstOrDefaultAsync(p => p.PaymentId == paymentId);
         if (payment == null)
         {
@@ -201,6 +206,7 @@ else
             return;
         }
 
+        //Only allow confirming pending cash payments
         if (payment.Method != "Cash" || payment.Status != "Pending")
         {
             msg = "This payment is no longer pending.";
@@ -222,6 +228,7 @@ else
             return;
         }
 
+        // Update both the Payment and its linked Bookings in one transaction (one SaveChanges)
         var now = DateTime.Now;
 
         payment.Status = "Succeeded";
@@ -234,6 +241,7 @@ else
 
         await db.SaveChangesAsync();
 
+        // Feedback message shows reference number
         msg = $"Cash confirmed. Ref: {payment.ReferenceNo}";
         isWorking = false;
 
