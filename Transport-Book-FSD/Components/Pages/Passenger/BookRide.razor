@@ -52,6 +52,7 @@
     {
         msg = null;
 
+        // Identify current passenger using Identity (prevents creating bookings without login)
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
         if (user == null)
@@ -60,6 +61,7 @@
             return;
         }
 
+        //Suspended passengers cannot create new bookings
         var profile = db.PassengerProfiles.FirstOrDefault(p => p.UserId == user.Id);
         if (profile != null && profile.IsSuspended)
         {
@@ -74,6 +76,7 @@
             }
             else
             {
+                // Show clear message: until when + reason (if available)
                 var untilText = profile.SuspendedUntil.HasValue
                     ? profile.SuspendedUntil.Value.ToString("dd MMM yyyy, HH:mm")
                     : "until further notice";
@@ -87,19 +90,22 @@
             }
         }
 
+        // Convert the datetime-local string into DateTime
         DateTime pickupDateTime = DateTime.Now;
         if (!string.IsNullOrWhiteSpace(pickupLocal))
         {
             DateTime.TryParse(pickupLocal, out pickupDateTime);
         }
 
+        // Fare is calculated based on pickup, dropoff, and time (Rule in FareCalculator)
         decimal fare = FareCalculator.CalculateFare(form.PickupLocation, form.DropoffLocation, pickupDateTime);
 
+        // Create booking record linked to passenger via Identity user id
         var booking = new Booking
         {
-            // Identity link only (Phase B)
             PassengerUserId = user.Id,
 
+            // Trim inputs for cleaner data storage
             PickupLocation = form.PickupLocation.Trim(),
             DropoffLocation = form.DropoffLocation.Trim(),
             PickupDateTime = pickupDateTime,
@@ -107,14 +113,17 @@
             Fare = fare
         };
 
+        //Save Booking to Database
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
 
+        // Redirect to booking list after success
         nav.NavigateTo("/passenger/mybookings", true);
     }
 
     private void GoMyBookings()
     {
+        // Redirect to booking list after success
         nav.NavigateTo("/passenger/mybookings");
     }
 

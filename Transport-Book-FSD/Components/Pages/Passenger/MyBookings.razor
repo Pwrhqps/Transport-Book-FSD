@@ -127,14 +127,18 @@ else
     {
         isLoading = true;
 
+        // Identify current logged-in passenger
         var user = await GetCurrentUser();
         if (user == null)
         {
+            // Show empty list if identity not available
             bookings = new List<Booking>();
             isLoading = false;
             return;
         }
 
+        // Show passenger bookings that still need attention:
+        // Exclude bookings that are already paid AND (completed OR cancelled penalty already paid)
         bookings = db.Bookings
             .Where(b => b.PassengerUserId == user.Id &&
                    !(b.IsPaid && (b.Status == "Completed" || (b.Status == "Cancelled" && b.Fare == 2.00m))))
@@ -147,6 +151,7 @@ else
 
     private async Task ConfirmCancel(int bookingId)
     {
+        // Confirmation dialog to prevent accidental cancellations
         var ok = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this booking?");
         if (!ok) return;
 
@@ -155,6 +160,7 @@ else
 
     private async Task ConfirmDelete(int bookingId)
     {
+        // Confirmation dialog because deletion is irreversible
         var ok = await JS.InvokeAsync<bool>("confirm", "Delete this booking? This cannot be undone.");
         if (!ok) return;
 
@@ -165,6 +171,7 @@ else
     {
         msg = null;
 
+        // Ensure user is authenticated before allowing cancellation
         var user = await GetCurrentUser();
         if (user == null)
         {
@@ -172,6 +179,7 @@ else
             return;
         }
 
+        // Passenger can only cancel their own bookings
         var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
@@ -179,6 +187,7 @@ else
             return;
         }
 
+        // Completed/cancelled bookings are not allowed to be cancelled again
         if (booking.Status == "Completed" || booking.Status == "Cancelled")
         {
             msg = "This booking cannot be cancelled.";
@@ -187,6 +196,7 @@ else
 
         if (booking.Status == "Pending")
         {
+            // Cancelling before acceptance has no penalty
             booking.Status = "Cancelled";
             booking.Fare = 0.00m;
 
@@ -199,6 +209,7 @@ else
 
         if (booking.Status == "Accepted")
         {
+            // Cancelling after driver acceptance triggers a $2 penalty
             booking.Status = "Cancelled";
             booking.Fare = 2.00m;
 
@@ -216,6 +227,7 @@ else
     {
         msg = null;
 
+        // Ensure user is authenticated before allowing deletion
         var user = await GetCurrentUser();
         if (user == null)
         {
@@ -223,6 +235,7 @@ else
             return;
         }
 
+        // Passenger can only delete their own bookings
         var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
@@ -230,18 +243,21 @@ else
             return;
         }
 
+        // Only cancelled bookings are allowed to be deleted
         if (booking.Status != "Cancelled")
         {
             msg = "Only cancelled bookings can be deleted.";
             return;
         }
 
+        // If there is a penalty ($2) and it is unpaid, block deletion until payment is done
         if (booking.Fare == 2.00m && !booking.IsPaid)
         {
             msg = "Penalty bookings must be paid before deletion.";
             return;
         }
 
+        // Remove booking record permanently (only allowed after rules above are satisfied)
         db.Bookings.Remove(booking);
         await db.SaveChangesAsync();
 

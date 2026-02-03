@@ -29,7 +29,7 @@ namespace TransportBookFSD.Models
         [StringLength(4)]
         public string? PayoutCardLast4 { get; set; }
 
-        // Vehicle / license (basic for now)
+        // Vehicle / license
         [StringLength(50)]
         public string VehicleType { get; set; } = "";
 

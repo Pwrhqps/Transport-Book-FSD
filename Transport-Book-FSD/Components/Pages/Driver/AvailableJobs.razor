@@ -1,13 +1,18 @@
 ﻿@page "/driver/jobs"
 @rendermode InteractiveServer
+
+@* Using statements for Identity + auth + EF models used in this page *@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @using TransportBookFSD.Data
 @using TransportBookFSD.Models
+
+@* Only users with Driver role can access this page *@
 @attribute [Authorize(Roles = "Driver")]
 
+@* Dependency injection: database + identity + auth state + browser JS confirm dialog *@
 @inject AppDbContext db
 @inject UserManager<ApplicationUser> userManager
 @inject AuthenticationStateProvider authStateProvider
@@ -15,11 +20,14 @@
 
 <h3>Available Jobs</h3>
 
+@* msg -> used for showing validation / permission / errors to driver *@
 @if (!string.IsNullOrEmpty(msg))
 {
+    //Shows errors like “not approved”, “suspended”, “booking not found”
     <div class="alert alert-danger">@msg</div>
 }
 
+@* Loading state to prevent empty flicker while fetching DB data *@
 @if (isLoading)
 {
     <p>Loading jobs...</p>
@@ -30,6 +38,7 @@ else if (jobs.Count == 0)
 }
 else
 {
+    @* Table of bookings that are still pending and not assigned to any driver *@
     <table class="table table-bordered">
         <thead>
             <tr>
@@ -50,8 +59,12 @@ else
                     <td>@row</td>
                     <td>@j.PickupLocation</td>
                     <td>@j.DropoffLocation</td>
+
+                    @* Display format for date/time in dd/MM/yyyy HH:mm *@
                     <td>@j.PickupDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+
                     <td>
+                        @* Accept button triggers confirmation first, then final accept logic *@
                         <button class="btn btn-sm btn-dark"
                                 @onclick="() => ConfirmAccept(j.BookingId)">
                             Accept
@@ -65,12 +78,18 @@ else
 }
 
 @code {
+    // jobs -> list of bookings currently available for drivers to accept
     private List<Booking> jobs = new();
+
+    // isLoading -> UI loading spinner/placeholder control
     private bool isLoading = true;
+
+    // msg -> user-facing error/info message shown at top
     private string? msg;
 
     protected override async Task OnInitializedAsync()
     {
+        // Load jobs when the page first renders
         await LoadJobs();
     }
 
@@ -78,28 +97,36 @@ else
     {
         msg = null; // Clear msg when loading
 
+        // Get current logged-in user from AuthenticationStateProvider + UserManager
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
         if (user == null)
         {
+            // user null -> auth session expired / not logged in correctly
             msg = "Unable to identify driver. Please login again.";
             jobs = new();
             isLoading = false;
             return;
         }
 
+        // Driver profile stores verification + suspension status (linked by UserId)
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
+            // No profile -> driver account not properly created/setup
             msg = "Driver profile not found.";
             jobs = new();
             isLoading = false;
             return;
         }
 
+        // Null/empty status treated as Pending to avoid null checks
         var status = string.IsNullOrWhiteSpace(driver.VerificationStatus) ? "Pending" : driver.VerificationStatus;
+
+        // Driver must be Approved before seeing available jobs
         if (status != "Approved")
         {
+            // Rejected -> show remarks (if any). Pending -> show waiting message.
             msg = status == "Rejected"
                 ? $"Your driver verification was rejected. Remarks: {(string.IsNullOrWhiteSpace(driver.VerificationRemarks) ? "No remarks provided." : driver.VerificationRemarks)}"
                 : "Your driver account is pending verification. Please wait for staff approval.";
@@ -111,10 +138,11 @@ else
 
         isLoading = true;
 
+        // Fetch only unassigned pending bookings and sort by pickup time (earliest first)
         jobs = db.Bookings
-            .Where(b => b.Status == "Pending" && b.DriverUserId == null)
-            .OrderBy(b => b.PickupDateTime)
-            .ThenBy(b => b.BookingId)
+            .Where(b => b.Status == "Pending" && b.DriverUserId == null) // Status + unassigned -> available jobs
+            .OrderBy(b => b.PickupDateTime) // earliest pickup first
+            .ThenBy(b => b.BookingId)       // ordering for same datetime
             .ToList();
 
         isLoading = false;
@@ -122,6 +150,7 @@ else
 
     private async Task ConfirmAccept(int bookingId)
     {
+        // JS confirm -> quick client-side confirmation before committing DB changes
         var ok = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to accept this job?");
         if (!ok) return;
 
@@ -132,6 +161,7 @@ else
     {
         msg = null;
 
+        // Re-check current driver user (avoid relying on old page state)
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
         if (user == null)
@@ -140,6 +170,7 @@ else
             return;
         }
 
+        // Load driver profile again to ensure latest verification/suspension info
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -147,7 +178,7 @@ else
             return;
         }
 
-        // Verification check
+        // Verification check (same rule as LoadJobs, but enforced again at accept time)
         var status = string.IsNullOrWhiteSpace(driver.VerificationStatus) ? "Pending" : driver.VerificationStatus;
         if (status != "Approved")
         {
@@ -157,6 +188,7 @@ else
             return;
         }
 
+        // Suspension rule: blocked from accepting jobs unless suspension has expired
         if (driver.IsSuspended)
         {
             // auto-reactivate if suspension has expired
@@ -166,10 +198,13 @@ else
                 driver.SuspendedReason = "";
                 driver.SuspendedUntil = null;
                 driver.SuspendedAt = null;
+
+                // Save immediately so driver state is consistent in DB
                 db.SaveChanges();
             }
             else
             {
+                // Display user-friendly suspension details
                 var untilText = driver.SuspendedUntil.HasValue
                     ? driver.SuspendedUntil.Value.ToString("dd MMM yyyy, HH:mm")
                     : "until further notice";
@@ -183,6 +218,7 @@ else
             }
         }
 
+        // Load booking by primary key
         var booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId);
         if (booking == null)
         {
@@ -190,23 +226,25 @@ else
             return;
         }
 
-        // Prevent double-accept / race condition
+        // Prevent double-accept
+        // If another driver already accepted, or booking moved on, block this attempt
         if (booking.Status != "Pending" || !string.IsNullOrWhiteSpace(booking.DriverUserId))
         {
             msg = "This job is no longer available.";
-            await LoadJobs();
+            await LoadJobs(); // refresh UI list
             return;
         }
 
-        // Identity link only (Phase B)
         booking.DriverUserId = user.Id;
 
+        // Update booking workflow state after driver accepts
         booking.Status = "Accepted";
         booking.AcceptedAt = DateTime.Now;
 
+        // Save all changes to DB
         await db.SaveChangesAsync();
 
         msg = "Job accepted.";
-        await LoadJobs();
+        await LoadJobs(); // reload available list after accepting
     }
 }

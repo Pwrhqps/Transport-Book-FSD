@@ -89,20 +89,22 @@ else
     private bool isLoading = true;
     private string? msg;
 
-    private string search = "";
-    private string roleFilter = "All";
+    private string search = ""; // keyword search (name/email/phone)
+    private string roleFilter = "All"; // All | Passenger | Driver
 
     private List<UserRow> all = new();
     private List<UserRow> filtered = new();
 
     protected override async Task OnInitializedAsync()
     {
+        // Load users once, then apply current filters
         await LoadUsers();
         await Apply();
     }
 
     private async Task OnRoleChanged()
     {
+        // Re-apply filters when role dropdown changes
         await Apply();
     }
 
@@ -111,13 +113,13 @@ else
         isLoading = true;
         msg = null;
 
-        // Identity users
+        // Load Identity users
         var users = await db.Users
             .AsNoTracking()
             .OrderBy(u => u.Email)
             .ToListAsync();
 
-        // Profiles (for name/phone)
+        // Load Profiles (for name/phone)
         var passengerProfiles = await db.PassengerProfiles.AsNoTracking().ToListAsync();
         var driverProfiles = await db.DriverProfiles.AsNoTracking().ToListAsync();
 
@@ -125,11 +127,11 @@ else
 
         foreach (var u in users)
         {
-            // Only manage Passenger & Driver
+            // Only manage Passenger & Driver accounts on this page
             string role = "";
             if (await userManager.IsInRoleAsync(u, "Passenger")) role = "Passenger";
             else if (await userManager.IsInRoleAsync(u, "Driver")) role = "Driver";
-            else continue; // skip Staff and others
+            else continue; // skip Staff/admin/others
 
             string displayName = u.Email ?? "";
             string phone = "";
@@ -171,6 +173,7 @@ else
 
     private async Task Apply()
     {
+        // Start from full list, then apply role + search filters
         IEnumerable<UserRow> q = all;
 
         if (roleFilter != "All")
@@ -178,6 +181,7 @@ else
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            // Case-insensitive search across name, email, and phone
             var s = search.Trim().ToLower();
             q = q.Where(x =>
                 (x.DisplayName ?? "").ToLower().Contains(s) ||
@@ -185,11 +189,13 @@ else
                 (x.Phone ?? "").ToLower().Contains(s));
         }
 
+        // Sort result for stable display
         filtered = q
             .OrderBy(x => x.Role)
             .ThenBy(x => x.DisplayName)
             .ToList();
 
+        // Refresh UI after applying filters
         await InvokeAsync(StateHasChanged);
     }
 
@@ -198,6 +204,7 @@ else
         nav.NavigateTo($"/staff/profile/{userId}");
     }
 
+    // Simple row model for display table (not a DB entity)
     private class UserRow
     {
         public string UserId { get; set; } = "";

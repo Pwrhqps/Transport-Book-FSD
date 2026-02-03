@@ -1,5 +1,6 @@
 ﻿@page "/driver/home"
 @rendermode InteractiveServer
+
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
@@ -7,6 +8,7 @@
 @using Microsoft.JSInterop
 @using TransportBookFSD.Data
 @using TransportBookFSD.Models
+
 @attribute [Authorize(Roles = "Driver")]
 
 @inject AppDbContext db
@@ -19,7 +21,8 @@
 
 @if (!string.IsNullOrEmpty(msg))
 {
-    <div class="alert alert-info">@msg</div>
+    //Shows messages like “Profile not found”, “Cash out successful”, “Please add payout card…”
+    <div class="alert alert-info">@msg</div> 
 }
 
 @if (isLoading)
@@ -28,6 +31,7 @@
 }
 else if (profile == null)
 {
+    @* Driver has no profile yet (must create before using driver features) *@
     <p>No driver profile found.</p>
     <button class="btn btn-dark" @onclick="GoToProfile">Create Profile</button>
 }
@@ -37,6 +41,7 @@ else
 
     @if (status != "Approved")
     {
+        @* Pending/Rejected warning shown clearly on home page *@
         <div class="alert alert-warning">
             @if (status == "Rejected")
             {
@@ -75,6 +80,7 @@ else
 
                     <div class="mb-2"><b>Total Completed Trips:</b> @totalCompletedTrips</div>
 
+                    @* Earnings breakdown is displayed separately for Cash vs Card *@
                     <div class="mb-2">
                         <b>Total Earnings (Cash):</b> @availableCashEarnings.ToString("0.00")
                         <div class="form-text">Cash is collected physically from passengers.</div>
@@ -85,6 +91,7 @@ else
                         <div class="form-text">Card earnings can be cashed out to your payout card.</div>
                     </div>
 
+                    @* Earnings only count when job is completed + payment succeeded *@
                     <div class="form-text">
                         Earnings are counted only for <b>Completed</b> jobs that are <b>Paid</b>.
                     </div>
@@ -101,15 +108,18 @@ else
                 <div class="col-md-6">
                     <div class="fw-bold mb-2">Payout Card (for Card Earnings)</div>
 
+                    @* Payout card is required before card earnings can be cashed out *@
                     @if (!HasPayoutCard())
                     {
                         <div class="mb-2">
                             <label class="form-label">Card Name (e.g. DBS Visa)</label>
+                            @* @bind keeps UI input synced with variables *@
                             <input class="form-control" @bind="payoutCardName" />
                         </div>
 
                         <div class="mb-2">
                             <label class="form-label">Last 4 digits</label>
+                            @* maxlength = 4 to limit user input *@
                             <input class="form-control" maxlength="4" @bind="payoutCardLast4" />
                         </div>
 
@@ -119,6 +129,7 @@ else
                     }
                     else
                     {
+                        @* Display masked saved payout card *@
                         <div class="mb-2">
                             <b>Saved:</b> @profile.PayoutCardName ****@profile.PayoutCardLast4
                         </div>
@@ -132,6 +143,7 @@ else
                 <div class="col-md-6">
                     <div class="fw-bold mb-2">Cash Out</div>
 
+                    @* Cash Out button availability depends on earnings + payout card rules *@
                     @if (availableCashEarnings <= 0 && availableCardBalance <= 0)
                     {
                         <div class="alert alert-info mb-2">
@@ -149,6 +161,7 @@ else
                     }
                     else
                     {
+                        @* Show what will be cashed out before user confirms *@
                         <div class="mb-2">
                             This will cash out:
                             <ul class="mb-2">
@@ -172,30 +185,34 @@ else
 }
 
 @code {
+    // profile -> current driver's profile data
     private DriverProfile? profile;
+
     private bool isLoading = true;
+
+    // msg -> user-visible message at top of page
     private string? msg;
 
     private int totalCompletedTrips = 0;
 
-    // Raw earnings from bookings (paid + completed)
     private decimal totalCashEarnings = 0m;
     private decimal totalCardEarnings = 0m;
 
-    // Cashed out totals from WalletTransactions
     private decimal totalCashCashedOut = 0m;
     private decimal totalCardCashedOut = 0m;
 
-    // What driver can still see / cash out
     private decimal availableCashEarnings = 0m;
     private decimal availableCardBalance = 0m;
 
     private string payoutCardName = "";
     private string payoutCardLast4 = "";
+
+    // When editing payout card, do not overwrite input fields during reload
     private bool isEditingPayoutCard = false;
 
     protected override async Task OnInitializedAsync()
     {
+        // Load profile + earnings 
         await Load();
     }
 
@@ -204,6 +221,7 @@ else
         isLoading = true;
         msg = null;
 
+        // Reset all values before reloading from database
         profile = null;
 
         totalCompletedTrips = 0;
@@ -216,18 +234,23 @@ else
         availableCashEarnings = 0m;
         availableCardBalance = 0m;
 
+        // Get current logged-in user via AuthenticationStateProvider + UserManager
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
 
         if (user != null)
         {
+            // Load driver's profile record
             profile = db.DriverProfiles.FirstOrDefault(p => p.UserId == user.Id);
 
             if (profile != null)
             {
+                // Count completed trips for driver
                 totalCompletedTrips = db.Bookings
                     .Count(b => b.DriverUserId == user.Id && b.Status == "Completed");
 
+                // paidCompleted -> base query for earnings calculation
+                // Include(Payment) -> access payment method and status
                 var paidCompleted = db.Bookings
                     .Include(b => b.Payment)
                     .Where(b => b.DriverUserId == user.Id
@@ -236,17 +259,21 @@ else
                         && b.Payment != null
                         && b.Payment.Status == Payment.PaymentStatuses.Succeeded);
 
+                // Sum cash earnings: payment method Cash
+                // (decimal?) + ?? 0m -> Sum() can be null when no records, so default to 0
                 totalCashEarnings = paidCompleted
                     .Where(b => b.Payment!.Method == "Cash")
                     .Select(b => (decimal?)b.Fare)
                     .Sum() ?? 0m;
 
+                // Balance -> passenger uses stored balance
                 totalCardEarnings = paidCompleted
                     .Where(b => b.Payment!.Method == "Card" || b.Payment!.Method == "Balance")
                     .Select(b => (decimal?)b.Fare)
                     .Sum() ?? 0m;
 
-                // Cashed out total
+                // Amount ensures only cash out records are counted
+                // Find how much has already been cashed out (Cash)
                 totalCashCashedOut = db.WalletTransactions
                     .Where(t => t.UserId == user.Id
                         && t.Type == "CashOut"
@@ -255,6 +282,7 @@ else
                     .Select(t => (decimal?)t.Amount)
                     .Sum() ?? 0m;
 
+                // Find how much has already been cashed out (Card)
                 totalCardCashedOut = db.WalletTransactions
                     .Where(t => t.UserId == user.Id
                         && t.Type == "CashOut"
@@ -263,15 +291,19 @@ else
                     .Select(t => (decimal?)t.Amount)
                     .Sum() ?? 0m;
 
+                // Convert any negative totals into positive amounts for display
+                // Negative amounts indicate cash out records
                 totalCashCashedOut = Math.Abs(totalCashCashedOut);
                 totalCardCashedOut = Math.Abs(totalCardCashedOut);
 
+                // Earnings that have not been cashed out yet
                 availableCashEarnings = totalCashEarnings - totalCashCashedOut;
                 if (availableCashEarnings < 0) availableCashEarnings = 0;
 
                 availableCardBalance = totalCardEarnings - totalCardCashedOut;
                 if (availableCardBalance < 0) availableCardBalance = 0;
 
+                // Populate payout card input fields only when not currently editing
                 if (!isEditingPayoutCard)
                 {
                     payoutCardName = profile.PayoutCardName ?? "";
@@ -285,6 +317,7 @@ else
 
     private bool HasPayoutCard()
     {
+        // Payout card requires card name + exactly 4 digits
         if (profile == null) return false;
         return !string.IsNullOrWhiteSpace(profile.PayoutCardName)
             && !string.IsNullOrWhiteSpace(profile.PayoutCardLast4)
@@ -293,6 +326,7 @@ else
 
     private void EditPayoutCard()
     {
+        // Load existing values into input fields
         isEditingPayoutCard = true;
         payoutCardName = profile?.PayoutCardName ?? "";
         payoutCardLast4 = profile?.PayoutCardLast4 ?? "";
@@ -309,50 +343,56 @@ else
             return;
         }
 
+        // card name cannot be empty
         if (string.IsNullOrWhiteSpace(payoutCardName))
         {
             msg = "Please enter a card name.";
             return;
         }
 
+        // last 4 digits must be numeric and length 4
         if (string.IsNullOrWhiteSpace(payoutCardLast4) || payoutCardLast4.Length != 4 || !payoutCardLast4.All(char.IsDigit))
         {
             msg = "Please enter last 4 digits (numbers only).";
             return;
         }
 
+        // Save payout card into DriverProfile table
         profile.PayoutCardName = payoutCardName.Trim();
         profile.PayoutCardLast4 = payoutCardLast4.Trim();
-
         await db.SaveChangesAsync();
 
         isEditingPayoutCard = false;
         msg = "Payout card saved.";
-        await Load();
+        await Load(); // reload to refresh displayed summary
     }
 
     private async Task ConfirmCashOut()
     {
         if (profile == null) return;
 
+        // No earnings available
         if (availableCashEarnings <= 0 && availableCardBalance <= 0)
         {
             msg = "No earnings available to cash out.";
             return;
         }
 
+        // Cannot cash out card earnings without payout card
         if (availableCardBalance > 0 && !HasPayoutCard())
         {
             msg = "Please add a payout card to cash out card earnings.";
             return;
         }
 
+        // JS confirm dialog shows a summary before creating wallet transactions
         var text =
             $"Cash out summary:\n" +
             $"- Cash: {availableCashEarnings:0.00} (acknowledgement)\n" +
             $"- Card: {availableCardBalance:0.00}\n\n" +
             $"Continue?";
 
+        // JS confirm -> quick client-side confirmation before committing DB changes
         var ok = await JS.InvokeAsync<bool>("confirm", text);
         if (!ok) return;
 
@@ -363,6 +403,7 @@ else
     {
         msg = null;
 
+        // Re-check current user at the time of action
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
 
@@ -372,6 +413,7 @@ else
             return;
         }
 
+        // Re-check earnings at the time of cash out
         if (availableCashEarnings <= 0 && availableCardBalance <= 0)
         {
             msg = "No earnings available to cash out.";
@@ -384,6 +426,7 @@ else
             return;
         }
 
+        // baseRef -> used to generate a readable unique reference number
         var baseRef = DateTime.Now.ToString("yyyyMMddHHmmss");
 
         // Cash acknowledgement (cash should already be collected physically)
@@ -402,7 +445,7 @@ else
             });
         }
 
-        // Card payout
+        // Card payout (money goes to the payout card stored in DriverProfile)
         if (availableCardBalance > 0)
         {
             db.WalletTransactions.Add(new WalletTransaction
@@ -421,7 +464,7 @@ else
         await db.SaveChangesAsync();
 
         msg = "Cash out successful.";
-        await Load();
+        await Load(); // reload totals so available earnings become 0 after cash out
     }
 
     private void GoToProfile()

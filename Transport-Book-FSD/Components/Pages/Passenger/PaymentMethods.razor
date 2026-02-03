@@ -136,6 +136,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Load current passenger and their saved cards on page load
         await Load();
     }
 
@@ -144,6 +145,7 @@ else
         isLoading = true;
         msg = "";
 
+        // Get logged-in user using Identity
         var auth = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(auth.User);
 
@@ -156,6 +158,7 @@ else
 
         userId = user.Id;
 
+        // Load cards: default card first, then other cards
         cards = await db.PassengerCards
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.IsDefault)
@@ -184,12 +187,14 @@ else
     {
         msg = "";
 
+        // Validate cardholder name
         if (string.IsNullOrWhiteSpace(newName))
         {
             msg = "Cardholder name is required.";
             return;
         }
 
+        // Validate last 4 digits
         newLast4 = (newLast4 ?? "").Trim();
         if (newLast4.Length != 4 || !IsDigits(newLast4))
         {
@@ -197,12 +202,14 @@ else
             return;
         }
 
+        // Validate expiry month/year range
         if (newMonth < 1 || newMonth > 12)
         {
             msg = "Expiry month must be 1 to 12.";
             return;
         }
 
+        // Block already expired cards
         if (newYear < DateTime.Now.Year || newYear > 2100)
         {
             msg = "Expiry year is not valid.";
@@ -233,6 +240,7 @@ else
 
         msg = "Card added.";
 
+        // Reset form and refresh card list
         ClearForm();
         await Load();
     }
@@ -241,6 +249,7 @@ else
     {
         msg = "";
 
+        // Load all cards for this passenger and set only one as default
         var list = await db.PassengerCards
             .Where(x => x.UserId == userId)
             .ToListAsync();
@@ -260,6 +269,7 @@ else
     {
         msg = "";
 
+        // Passenger can only delete their own card
         var card = await db.PassengerCards
             .FirstOrDefaultAsync(x => x.PassengerCardId == id && x.UserId == userId);
 
@@ -269,6 +279,7 @@ else
             return;
         }
 
+        // Track whether default card is being removed
         bool wasDefault = card.IsDefault;
 
         db.PassengerCards.Remove(card);
@@ -295,6 +306,7 @@ else
 
     void ClearForm()
     {
+        // Reset add-card form to default values
         newName = "";
         newLast4 = "";
         newMonth = DateTime.Now.Month;
