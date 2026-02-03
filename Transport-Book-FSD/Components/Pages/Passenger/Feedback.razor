@@ -14,12 +14,15 @@
 
 <h3>Ride Feedback</h3>
 
+@* back button *@
 <button class="btn btn-outline-dark mb-3" @onclick="Back">Back to Booking History</button>
 
+@* shows a message whenever there is an error *@
 @if (!string.IsNullOrEmpty(msg))
 {
     <div class="alert alert-info">@msg</div>
 }
+
 
 @if (isLoading)
 {
@@ -31,7 +34,7 @@ else if (booking == null)
 }
 else
 {
-    <!-- ✅ Receipt -->
+    <!-- Displays a receipt like card. -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
@@ -41,6 +44,7 @@ else
 
             <hr />
 
+            @* prints value from booking model *@
             <div class="row g-3">
                 <div class="col-md-6">
                     <div><b>Pickup:</b> @booking.PickupLocation</div>
@@ -58,7 +62,7 @@ else
         </div>
     </div>
 
-    <!-- ✅ Driver -->
+    @* Shows driver plate and name if managed to load, if null show "-" *@
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <h6 class="mb-3">Driver</h6>
@@ -67,7 +71,8 @@ else
         </div>
     </div>
 
-    <!-- ✅ Feedback -->
+
+    <!-- Feedback -->
     <div class="card shadow-sm">
         <div class="card-body">
             <h6 class="mb-3">Feedback</h6>
@@ -121,6 +126,8 @@ else
 }
 
 @code {
+    // Controls page state, data loading, validation, and feedback submission logic
+    //Allows one page to show feedback for many bookings
     [Parameter] public int bookingId { get; set; }
 
     private bool isLoading = true;
@@ -140,16 +147,20 @@ else
 
     private TransportBookFSD.Models.Feedback? existingFeedback;
 
+    //loads booking +driver + feedback from DB.
     protected override async Task OnInitializedAsync()
     {
         await Load();
     }
 
+    //Redirects to the booking history page.
     private void Back()
     {
         nav.NavigateTo("/passenger/bookinghistory");
     }
 
+
+    // Gets the current logged-in user from ASP.NET Identity
     private async Task<ApplicationUser?> GetCurrentUser()
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync();
@@ -158,9 +169,12 @@ else
 
     private async Task Load()
     {
+        //Reset UI state before loading.
         isLoading = true;
         msg = null;
 
+
+        //If identity session not found, show message and stop.
         var user = await GetCurrentUser();
         if (user == null)
         {
@@ -169,6 +183,7 @@ else
             return;
         }
 
+        //Loads booking only if it belongs to the logged-in passenger.
         booking = db.Bookings.FirstOrDefault(b => b.BookingId == bookingId && b.PassengerUserId == user.Id);
         if (booking == null)
         {
@@ -176,11 +191,13 @@ else
             return;
         }
 
-        // ✅ Generate receipt reference number
+        // Generate receipt reference number
         receiptRef = $"RCP-{booking.PickupDateTime:yyyyMMdd}-{booking.BookingId:D4}";
 
+        //Enables feedback only after ride completion.
         isAllowed = (booking.Status == "Completed");
 
+        //If booking has a driver assigned then load driver’s profile by UserId
         if (!string.IsNullOrWhiteSpace(booking.DriverUserId))
         {
             var d = db.DriverProfiles.FirstOrDefault(x => x.UserId == booking.DriverUserId);
@@ -191,15 +208,20 @@ else
             }
         }
 
+        //Checks if a feedback record already exists for this booking.
         existingFeedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
 
         isLoading = false;
     }
 
+
+    //Handles Submit button click
     private async Task Submit()
     {
+        //Reset message
         msg = null;
 
+        // Prevents null reference crashes
         var user = await GetCurrentUser();
         if (user == null || booking == null)
         {
@@ -213,6 +235,7 @@ else
             return;
         }
 
+        // Prevents duplicate feedback submissions
         var exists = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
         if (exists != null)
         {
@@ -221,6 +244,7 @@ else
             return;
         }
 
+        // Create and save new feedback record
         var fb = new TransportBookFSD.Models.Feedback
         {
             BookingId = booking.BookingId,
@@ -231,6 +255,7 @@ else
             CreatedAt = DateTime.Now
         };
 
+        // Save to database
         db.Feedbacks.Add(fb);
         await db.SaveChangesAsync();
 
@@ -238,6 +263,8 @@ else
         await Load();
     }
 
+
+    // Converts numeric rating to star representation
     private string GetStars(int rating)
     {
         return new string('⭐', rating);

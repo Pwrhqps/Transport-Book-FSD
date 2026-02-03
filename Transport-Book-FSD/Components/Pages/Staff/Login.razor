@@ -1,5 +1,4 @@
 ﻿@page "/auth/staff-login"
-@rendermode InteractiveServer
 @inject NavigationManager nav
 
 <h3>Login</h3>
@@ -8,6 +7,14 @@
 @code {
     protected override void OnInitialized()
     {
-        nav.NavigateTo("/auth/login", true);
+        try
+        {
+            nav.NavigateTo("/auth/login", forceLoad: true);
+        }
+        catch (Microsoft.AspNetCore.Components.NavigationException)
+        {
+            // Ignore: thrown by Blazor to stop rendering during navigation
+        }
     }
 }
+

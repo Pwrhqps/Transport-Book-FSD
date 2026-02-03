@@ -15,6 +15,7 @@
 
 <h3>Booking History</h3>
 
+@*shows a message whenever there is an error*@
 @if (!string.IsNullOrEmpty(msg))
 {
     <div class="alert alert-info">@msg</div>
@@ -30,6 +31,7 @@ else if (history.Count == 0)
 }
 else
 {
+    // Displays booking history in a table
     <table class="table table-bordered">
         <thead>
             <tr>
@@ -79,11 +81,12 @@ else
 }
 
 @code {
+    //state variables
     private bool isLoading = true;
     private string? msg;
 
+    //booking history list
     private List<Booking> history = new();
-
     private HashSet<int> feedbackBookingIds = new();
 
     protected override async Task OnInitializedAsync()
@@ -102,11 +105,13 @@ else
         return await userManager.GetUserAsync(authState.User);
     }
 
+    // Loads completed booking history for the current user
     private async Task LoadHistory()
     {
         isLoading = true;
         msg = null;
 
+        //ensures only their bookings are shown
         var user = await GetCurrentUser();
         if (user == null)
         {
@@ -115,19 +120,23 @@ else
             return;
         }
 
+        //Only take bookings that belong to this user and is completed
         history = await db.Bookings
             .Where(b => b.PassengerUserId == user.Id && b.Status == "Completed")
+
+            //Put the newest bookings at the top
             .OrderByDescending(b => b.PickupDateTime)
+
+            //Turn the result into a list and save it in history
             .ToListAsync();
 
+        //Get booking IDs that have feedback
         var ids = await db.Feedbacks
     .Where(f => history.Select(h => h.BookingId).Contains(f.BookingId))
     .Select(f => f.BookingId)
     .ToListAsync();
-
+    //
         feedbackBookingIds = ids.ToHashSet();
-
-
         isLoading = false;
     }
 }

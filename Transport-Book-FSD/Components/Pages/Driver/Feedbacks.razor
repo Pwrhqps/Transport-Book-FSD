@@ -71,6 +71,7 @@ else
     </table>
 }
 
+@* Variables used to manage page state and display feedback information*@
 @code {
     private bool isLoading = true;
     private string? msg;
@@ -84,15 +85,18 @@ else
     }
 
     private async Task Load()
-    {
+    {   
+        // Reset page state before loading
         isLoading = true;
         msg = null;
         items = new();
         avgRating = 0;
 
+        // Get the currently logged-in user (driver)
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = await userManager.GetUserAsync(authState.User);
 
+        // If user cannot be identified, stop loading
         if (user == null)
         {
             msg = "Unable to identify driver. Please login again.";
@@ -100,7 +104,7 @@ else
             return;
         }
 
-        // Optional: keep profile check (ensures driver has a profile)
+        // Ensure the logged-in user has a driver profile
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -109,7 +113,7 @@ else
             return;
         }
 
-        // Phase B: Feedback linked only via Booking.DriverUserId (Identity)
+        // Retrieve feedback records for bookings owned by this driver
         items = (
             from f in db.Feedbacks
             join b in db.Bookings on f.BookingId equals b.BookingId
@@ -122,6 +126,7 @@ else
 
             where b.DriverUserId == user.Id
 
+            // Sort by newest feedback first
             orderby f.CreatedAt descending, f.FeedbackId descending
             select new FeedbackRow
             {
@@ -142,6 +147,7 @@ else
             }
         ).ToList();
 
+        // Calculate average rating if feedback exists
         if (items.Count > 0)
         {
             avgRating = items.Average(x => x.Rating);
@@ -155,13 +161,16 @@ else
         nav.NavigateTo($"/driver/feedback/{bookingId}");
     }
 
+    //converts a numeric rating into star icons
     private string GetStars(int rating)
     {
+        //If the rating is 0 or less show no stars, cap 5 stars
         if (rating < 1) return "";
         if (rating > 5) rating = 5;
         return new string('⭐', rating);
     }
 
+    //stores all the information needed to display a single feedback entry on the page.
     private class FeedbackRow
     {
         public int FeedbackId { get; set; }

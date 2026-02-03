@@ -72,6 +72,7 @@ else
                     </select>
                 </div>
 
+
                 <div class="col-lg-3 d-flex gap-2">
                     <button class="btn btn-dark w-100" @onclick="ApplyFilters">
                         Apply
@@ -169,20 +170,21 @@ else
         nav.NavigateTo("/staff/driverfeedbacks");
     }
 
+    //clear old data
     private async Task LoadAsync()
     {
         isLoading = true;
         msg = null;
         rows.Clear();
         avgRating = 0.0;
-
+        //Check if DriverUserId is valid
         if (string.IsNullOrWhiteSpace(DriverUserId))
         {
             msg = "Invalid driver.";
             isLoading = false;
             return;
         }
-
+        //Load driver profile
         driver = await db.DriverProfiles
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.UserId == DriverUserId);
@@ -192,20 +194,22 @@ else
             isLoading = false;
             return;
         }
-
+        //Load feedback list
         await LoadRowsAsync();
         isLoading = false;
     }
 
     private async Task LoadRowsAsync()
-    {
+    {   
+        //loads feedback rows + apply filters
         filterMsg = null;
         rows.Clear();
 
+        //Copy date inputs to local variables
         var fromDt = fromInput;
         var toDt = toInput;
 
-
+        //Prevents staff from accidentally filtering wrongly
         if (fromDt.HasValue && toDt.HasValue && fromDt.Value > toDt.Value)
         {
             // Swap automatically so user doesn't get "empty results" by mistake
@@ -213,6 +217,7 @@ else
             filterMsg = "Note: From/To were swapped because From > To.";
         }
 
+        //Building the database query
         var baseQuery =
             from f in db.Feedbacks
             join b in db.Bookings on f.BookingId equals b.BookingId
@@ -220,7 +225,8 @@ else
             join u in db.Users on f.PassengerUserId equals u.Id into pu
             from passengerUser in pu.DefaultIfEmpty()
             select new { f, b, passengerUser };
-
+        
+        //Apply date filters
         if (fromDt.HasValue)
             baseQuery = baseQuery.Where(x => x.f.CreatedAt >= fromDt.Value);
 
@@ -236,6 +242,7 @@ else
             _             => baseQuery.OrderByDescending(x => x.f.CreatedAt), // date_desc default
         };
 
+        //Convert query results into Row objects
         rows = await baseQuery
             .Select(x => new Row
             {
@@ -253,7 +260,7 @@ else
             })
             .AsNoTracking()
             .ToListAsync();
-
+        //Calculate average rating
         avgRating = rows.Count > 0 ? rows.Average(r => r.Rating) : 0.0;
     }
 
@@ -262,6 +269,7 @@ else
         await LoadRowsAsync();
     }
 
+    //Resets all filters to default
     private async Task ClearFilters()
     {
         sortMode = "date_desc";
@@ -271,23 +279,29 @@ else
         await LoadRowsAsync();
     }
 
+    //converts a date-time string into a DateTime object
     private static DateTime? ParseLocal(string? s)
-    {
+    {   
+        //Prevents errors when no date is provided
         if (string.IsNullOrWhiteSpace(s)) return null;
 
-        // datetime-local format is usually: "yyyy-MM-ddTHH:mm"
+        //Tries to convert the input string into a local DateTime; returns the result if successful
         if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt))
             return dt;
 
         return null;
     }
 
+
+    //converts a numeric rating into star icons
     private string GetStars(int rating)
     {
         if (rating <= 0) return "";
         return new string('⭐', rating);
     }
 
+
+    //store variable for one feedback
     private class Row
     {
         public int BookingId { get; set; }

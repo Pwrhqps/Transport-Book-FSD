@@ -154,16 +154,21 @@ else
     <button class="btn btn-outline-dark mt-2" @onclick="Back">Back</button>
 }
 
+
 @code {
+    // The user ID parameter from the URL
     [Parameter] public string UserId { get; set; } = "";
 
+    // Controls loading state of the page
     private bool isLoading = true;
 
+    // Identity user and basic display fields
     private ApplicationUser? user;
     private string role = "";
     private string displayName = "";
     private string phone = "";
 
+    //Passenger and Driver specific profile details
     private PassengerProfile? passengerProfile;
     private DriverProfile? driverProfile;
 
@@ -172,31 +177,37 @@ else
         await Load();
     }
 
+    // Loads user identity, role, and profile information
     private async Task Load()
     {
         isLoading = true;
 
         user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId);
+        // Stop if user does not exist
         if (user == null)
         {
             isLoading = false;
             return;
         }
 
+        //Determine the user's role
         role = "Unknown";
         if (await userManager.IsInRoleAsync(user, "Passenger")) role = "Passenger";
         else if (await userManager.IsInRoleAsync(user, "Driver")) role = "Driver";
         else if (await userManager.IsInRoleAsync(user, "Staff")) role = "Staff";
 
+        // Load passenger and driver profiles based on roles
         passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == UserId);
         driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == UserId);
 
+        // Set display name and phone based on available profile
         displayName = passengerProfile?.FullName ?? driverProfile?.FullName ?? (user.Email ?? "");
         phone = passengerProfile?.ContactNumber ?? driverProfile?.ContactNumber ?? "";
 
+        //Loading complete
         isLoading = false;
     }
-
+    // Converts null or empty status to "Pending"
     private string GetStatusText(string? status)
     {
         if (string.IsNullOrWhiteSpace(status)) return "Pending";

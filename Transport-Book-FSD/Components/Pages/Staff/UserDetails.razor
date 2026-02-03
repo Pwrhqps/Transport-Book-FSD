@@ -176,23 +176,30 @@ else
 }
 
 @code {
+    //allows the page to receive data from the URL
     [Parameter] public string UserId { get; set; } = "";
-
+    
+    //Controls what the UI shows
     private bool isLoading = true;
     private string? msg;
 
+    //Identity user and basic display fields
     private ApplicationUser? user;
     private string role = "";
     private string displayName = "";
     private string phone = "";
 
+    //Passenger and Driver specific profile details
     private PassengerProfile? passengerProfile;
     private DriverProfile? driverProfile;
 
+    //Staff sets this when interviewing a driver
     private DateTime? interviewDate;
 
+    //editable staff inputs
     private string? remarks;
 
+    // Checklist tick boxes
     private bool chkLicenseClear;
     private bool chkPlateMatches;
     private bool chkVehicleInfo;
@@ -200,7 +207,7 @@ else
     private bool chkInfoConsistent;
     private bool chkVehicleSafe;
 
-
+    // Returns true only if all required checkboxes are ticked
     private bool AllChecked =>
         chkLicenseClear &&
         chkPlateMatches &&
@@ -213,73 +220,93 @@ else
         await Load();
     }
 
+    //Save staff-entered interview date into the driver's profile
     private async Task SaveInterviewDate()
     {
+        // If there is no driver profile, nothing to save
         if (driverProfile == null) return;
 
+        // re-loads the driver profile as a tracked entity
         var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
         if (d == null) return;
 
+        // updates the interview date
         d.InterviewDate = interviewDate;
         await db.SaveChangesAsync();
         await Load();
     }
 
+    //Get the currently logged-in staff user's ID 
     private async Task<string> GetStaffUserId()
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var u = await userManager.GetUserAsync(authState.User);
         return u?.Id ?? "";
     }
-
+    // Approve a driver and record verification details
     private async Task ApproveDriver()
     {
         msg = null;
 
+        // If not a driver, nothing to approve
         if (driverProfile == null) return;
 
+        // Current staff user id
         var staffId = await GetStaffUserId();
 
+        // Re-fetch tracked entity to update it
         var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
         if (d == null) return;
 
+        // Update verification fields
         d.VerificationStatus = "Approved";
         d.VerificationRemarks = (remarks ?? "").Trim();
         d.VerifiedAt = DateTime.Now;
         d.VerifiedByUserId = staffId;
 
+        // Save to database
         await db.SaveChangesAsync();
 
+        // Show confirmation and refresh UI
         msg = "Driver approved.";
         await Load();
     }
 
+    // Reject a driver and record verification details
     private async Task RejectDriver()
     {
         msg = null;
 
+        // If not a driver, nothing to reject
         if (driverProfile == null) return;
 
+        // Current staff user id
         var staffId = await GetStaffUserId();
 
+        // Re-fetch driver profile as tracked entity
         var d = await db.DriverProfiles.FirstOrDefaultAsync(x => x.DriverProfileId == driverProfile.DriverProfileId);
         if (d == null) return;
 
+        // Update verification fields
         d.VerificationStatus = "Rejected";
         d.VerificationRemarks = (remarks ?? "").Trim();
         d.VerifiedAt = DateTime.Now;
         d.VerifiedByUserId = staffId;
 
+        // Save to database
         await db.SaveChangesAsync();
 
+        // Show confirmation and refresh UI
         msg = "Driver rejected.";
         await Load();
     }
 
+    // Load user + profile data from database and prepare what to show on screen
     private async Task Load()
     {
         isLoading = true;
 
+        // Load Identity user record
         user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId);
         if (user == null)
         {
@@ -287,22 +314,27 @@ else
             return;
         }
 
+        // Determine user's role
         role = "Unknown";
         if (await userManager.IsInRoleAsync(user, "Passenger")) role = "Passenger";
         else if (await userManager.IsInRoleAsync(user, "Driver")) role = "Driver";
         else if (await userManager.IsInRoleAsync(user, "Staff")) role = "Staff";
 
+        // Load related profiles
         passengerProfile = await db.PassengerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == UserId);
         driverProfile = await db.DriverProfiles.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == UserId);
 
+        // Prefer profile name/phone if exists
         displayName = passengerProfile?.FullName ?? driverProfile?.FullName ?? (user.Email ?? "");
         phone = passengerProfile?.ContactNumber ?? driverProfile?.ContactNumber ?? "";
 
+        // Load driver interview date + remarks if driver profile exists
         interviewDate = driverProfile?.InterviewDate;
 
         if (driverProfile != null)
             remarks = driverProfile.VerificationRemarks;
 
+        // Reset checklist each time page loads
         chkLicenseClear = false;
         chkPlateMatches = false;
         chkVehicleInfo = false;
@@ -312,12 +344,14 @@ else
         isLoading = false;
     }
 
+    // Convert null/empty status to a friendly text
     private string GetStatusText(string? status)
     {
         if (string.IsNullOrWhiteSpace(status)) return "Pending";
         return status;
     }
 
+    // Navigate back to the correct staff list page, depending on where user came from
     private void Back()
     {
         if (nav.Uri.Contains("from=verifydrivers"))

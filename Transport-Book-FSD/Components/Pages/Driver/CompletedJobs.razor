@@ -100,8 +100,8 @@ else
             isLoading = false;
             return;
         }
-
-        // Optional: keep profile check (ensures driver has a profile)
+        
+        //Get the driver profile that belongs to the currently logged-in user
         var driver = db.DriverProfiles.FirstOrDefault(d => d.UserId == user.Id);
         if (driver == null)
         {
@@ -110,6 +110,7 @@ else
             return;
         }
 
+        //Retrieve all completed bookings that belong to this driver
         jobs = db.Bookings
             .Where(b => b.DriverUserId == user.Id && b.Status == "Completed")
             .OrderByDescending(b => b.PickupDateTime)

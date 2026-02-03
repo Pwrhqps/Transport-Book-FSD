@@ -79,19 +79,23 @@ else
 }
 
 @code {
+    // Store Variables
     private DriverProfile profile = new();
     private bool isLoading = true;
     private ApplicationUser? user;
 
+    // Page Initialization
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
 
+        // Get current user
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         user = await userManager.GetUserAsync(authState.User);
 
         if (user != null)
         {
+            // Load existing profile or create new
             var existing = db.DriverProfiles.FirstOrDefault(p => p.UserId == user.Id);
             if (existing != null)
             {
@@ -99,6 +103,7 @@ else
             }
             else
             {
+                // Create new profile
                 profile = new DriverProfile
                 {
                     UserId = user.Id,

@@ -4,6 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @attribute [Authorize(Policy = "Staff2FA")]
 
+
 @inject TransportBookFSD.Data.AppDbContext db
 @inject NavigationManager nav
 
@@ -84,6 +85,7 @@ else
 @code {
     private bool isLoading = true;
 
+    // Stores summary statistics for the staff dashboard
     private int pendingDrivers;
     private int totalUsers;
     private int lowRatedDrivers;
@@ -91,7 +93,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Uses your real DbSets: DriverProfiles + Feedbacks
+        // Counts the total numbers of each variables
         pendingDrivers = await db.DriverProfiles.CountAsync(d => d.VerificationStatus == "Pending");
         totalUsers = await db.Users.CountAsync();
         lowRatedDrivers = await db.DriverProfiles.CountAsync(d => d.Rating < 3.0);

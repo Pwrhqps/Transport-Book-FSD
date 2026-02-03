@@ -108,6 +108,7 @@ else
     private string customerName = "-";
     private string customerPhone = "-";
 
+    // Retrieves the currently logged-in user.
     private async Task<ApplicationUser?> GetCurrentUser()
     {
         var authState = await authStateProvider.GetAuthenticationStateAsync();
@@ -119,6 +120,7 @@ else
         await Load();
     }
 
+    // Loads booking, customer details, and feedback from the database.
     private async Task Load()
     {
         isLoading = true;
@@ -137,7 +139,7 @@ else
             return;
         }
 
-        // Phase B: booking ownership strictly by DriverUserId
+        // Only allow the correct driver to access this booking
         booking = db.Bookings.FirstOrDefault(b =>
             b.BookingId == BookingId &&
             b.DriverUserId == user.Id
@@ -149,7 +151,7 @@ else
             return;
         }
 
-        // Customer details: PassengerProfiles via PassengerUserId
+        // Load customer details from PassengerProfile
         if (!string.IsNullOrWhiteSpace(booking.PassengerUserId))
         {
             var pp = db.PassengerProfiles.FirstOrDefault(p => p.UserId == booking.PassengerUserId);
@@ -160,7 +162,8 @@ else
             }
         }
 
-        // Optional: fallback to AspNetUsers email if profile missing
+        // Fallback: load from Identity user email if PassengerProfile name is not available
+        // Use the passenger’s email as a backup “name”
         if (customerName == "-" && !string.IsNullOrWhiteSpace(booking.PassengerUserId))
         {
             var passengerUser = await userManager.FindByIdAsync(booking.PassengerUserId);
@@ -169,12 +172,12 @@ else
                 customerName = string.IsNullOrWhiteSpace(passengerUser.Email) ? "-" : passengerUser.Email;
             }
         }
-
+        // Load feedback for this booking
         feedback = db.Feedbacks.FirstOrDefault(f => f.BookingId == booking.BookingId);
 
         isLoading = false;
     }
-
+    // Redirects to the driver feedbacks page.
     private void Back()
     {
         nav.NavigateTo("/driver/feedbacks");

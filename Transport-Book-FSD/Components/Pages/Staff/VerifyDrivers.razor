@@ -79,10 +79,12 @@ else
 }
 
 @code {
+    //controls loading state of the page
     private bool isLoading = true;
     private string filter = "Pending";
     private string? msg;
 
+    //list of drivers to display
     private List<DriverProfile> drivers = new();
 
     protected override async Task OnInitializedAsync()
@@ -95,6 +97,7 @@ else
         await Load();
     }
 
+    //refresh the list when filter changes
     private async Task OnFilterChanged()
     {
         await Load();
@@ -131,6 +134,7 @@ else
         return status;
     }
 
+    // Opens staff user details page for selected driver
     private void OpenUserDetails(string userId)
     {
         nav.NavigateTo($"/staff/userdetails/{userId}?from=verifydrivers");

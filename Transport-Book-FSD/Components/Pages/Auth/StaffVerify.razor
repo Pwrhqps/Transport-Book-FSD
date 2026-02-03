@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using TransportBookFSD.Models
 @using Microsoft.AspNetCore.WebUtilities
+@* Store OTP temporarily *@
 @using Microsoft.Extensions.Caching.Memory
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Components.Authorization
@@ -13,15 +14,21 @@
 
 <h3>Staff Verification</h3>
 
+@* Error message block *@
 @if (error == "1")
 {
-    <div class="alert alert-danger">Invalid or expired OTP. Please try again.</div>
+    <div class="alert alert-danger">
+        Invalid or expired OTP. Please try again.
+    </div>
 }
 
+
+<!-- OTP input form -->
 <form method="post" action="/auth/staff-verify-post">
     <div class="mb-3">
         <label class="form-label">Enter OTP</label>
         <input class="form-control" name="Code" />
+
         <div class="form-text">OTP expires in 3 minutes.</div>
 
         @if (env.IsDevelopment() && !string.IsNullOrEmpty(DevOtp))
@@ -44,25 +51,35 @@
     <button type="submit" class="btn btn-dark">Verify</button>
 </form>
 
+<!-- Store Variables -->
 @code {
     private string? error;
     private string? DevOtp;
     private bool showDevOtp = false;
 
+    <!--runs when page loads -->
     protected override async Task OnParametersSetAsync()
     {
+        // Get the current page URL
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
+
+        // Check if the URL contains ?error
         if (query.TryGetValue("error", out var v))
+            // Store the error value so can display an error message
             error = v.ToString();
 
+        // Only run this block in Development mode
         if (env.IsDevelopment())
-        {
+        {   
+            // Retrieve the current user
             var authState = await authStateProvider.GetAuthenticationStateAsync();
+
+            // Retrieve the logged-in staff user from Identity
             var user = await userManager.GetUserAsync(authState.User);
 
             if (user != null)
-            {
+            {   // Try to retrieve the OTP from memory cache using the staff user ID
                 cache.TryGetValue($"staff-otp:{user.Id}", out DevOtp);
             }
         }
@@ -72,6 +89,7 @@
             showDevOtp = false;
     }
 
+    // Toggle the visibility of the OTP on the screen
     private void ToggleDevOtp()
     {
         showDevOtp = !showDevOtp;
