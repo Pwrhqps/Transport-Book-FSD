@@ -3,6 +3,7 @@
 namespace TransportBookFSD.Models
 {
     public class WalletTransaction
+    // WalletTransaction is a ledger record for wallet balance changes
     {
         [Key]
         public int WalletTransactionId { get; set; }

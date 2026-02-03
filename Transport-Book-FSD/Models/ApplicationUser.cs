@@ -9,6 +9,6 @@ namespace TransportBookFSD.Models
         public string? LicensePlate { get; set; }
 
         // Note: IdentityUser already includes a 'PhoneNumber' property, 
-        // so you don't need to add it here.
+        // so don't need to add it here.
     }
 }

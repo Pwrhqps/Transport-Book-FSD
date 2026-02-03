@@ -21,7 +21,8 @@
 
 @if (!string.IsNullOrEmpty(msg))
 {
-    <div class="alert alert-info">@msg</div>
+    //Shows messages like “Profile not found”, “Cash out successful”, “Please add payout card…”
+    <div class="alert alert-info">@msg</div> 
 }
 
 @if (isLoading)
@@ -272,6 +273,7 @@ else
                     .Sum() ?? 0m;
 
                 // Amount ensures only cash out records are counted
+                // Find how much has already been cashed out (Cash)
                 totalCashCashedOut = db.WalletTransactions
                     .Where(t => t.UserId == user.Id
                         && t.Type == "CashOut"
@@ -280,6 +282,7 @@ else
                     .Select(t => (decimal?)t.Amount)
                     .Sum() ?? 0m;
 
+                // Find how much has already been cashed out (Card)
                 totalCardCashedOut = db.WalletTransactions
                     .Where(t => t.UserId == user.Id
                         && t.Type == "CashOut"
@@ -289,6 +292,7 @@ else
                     .Sum() ?? 0m;
 
                 // Convert any negative totals into positive amounts for display
+                // Negative amounts indicate cash out records
                 totalCashCashedOut = Math.Abs(totalCashCashedOut);
                 totalCardCashedOut = Math.Abs(totalCardCashedOut);
 
@@ -356,7 +360,6 @@ else
         // Save payout card into DriverProfile table
         profile.PayoutCardName = payoutCardName.Trim();
         profile.PayoutCardLast4 = payoutCardLast4.Trim();
-
         await db.SaveChangesAsync();
 
         isEditingPayoutCard = false;
@@ -389,6 +392,7 @@ else
             $"- Card: {availableCardBalance:0.00}\n\n" +
             $"Continue?";
 
+        // JS confirm -> quick client-side confirmation before committing DB changes
         var ok = await JS.InvokeAsync<bool>("confirm", text);
         if (!ok) return;
 

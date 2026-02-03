@@ -20,9 +20,10 @@
 
 <h3>Available Jobs</h3>
 
-@* msg -> used for showing validation / permission / workflow errors to driver *@
+@* msg -> used for showing validation / permission / errors to driver *@
 @if (!string.IsNullOrEmpty(msg))
 {
+    //Shows errors like “not approved”, “suspended”, “booking not found”
     <div class="alert alert-danger">@msg</div>
 }
 

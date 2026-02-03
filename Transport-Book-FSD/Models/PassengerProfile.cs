@@ -3,6 +3,7 @@
 namespace TransportBookFSD.Models
 {
     public class PassengerProfile
+    // PassengerProfile stores personal and account-related information for a passenger
     {
         [Key]
         public int PassengerProfileId { get; set; }
@@ -29,8 +30,5 @@ namespace TransportBookFSD.Models
         public string SuspendedReason { get; set; } = "";
         public DateTime? SuspendedUntil { get; set; }
         public DateTime? SuspendedAt { get; set; }
-
-        // Optional later
-        public string ProfileImagePath { get; set; } = "";
     }
 }

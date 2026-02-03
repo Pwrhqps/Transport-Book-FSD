@@ -3,6 +3,7 @@
 namespace TransportBookFSD.Models
 {
     public class Payment
+    // Payment records a single payment transaction made by a passenger
     {
         public int PaymentId { get; set; }
 
@@ -26,7 +27,6 @@ namespace TransportBookFSD.Models
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? CompletedAt { get; set; }
 
-        // Optional mock receipt detail
         [StringLength(4)]
         public string? CardLast4 { get; set; }
 

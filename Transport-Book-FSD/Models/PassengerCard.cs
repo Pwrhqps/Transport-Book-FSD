@@ -3,6 +3,7 @@
 namespace TransportBookFSD.Models
 {
     public class PassengerCard
+    // PassengerCard stores saved payment card information for a passenger
     {
         [Key]
         public int PassengerCardId { get; set; }

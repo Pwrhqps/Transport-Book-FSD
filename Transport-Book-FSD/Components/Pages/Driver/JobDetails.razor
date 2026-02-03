@@ -90,7 +90,7 @@ else
 
             @if (job.Status == "Accepted")
             {
-                @* Finish Job is blocked if pickup time not reached OR cash not confirmed *@
+                @* Finish Job is blocked if pickup time not reached *@
                 <button class="btn btn-success me-2" @onclick="ConfirmFinishJob" disabled="@(!CanFinishJob)">
                     Finish Job
                 </button>
@@ -123,8 +123,9 @@ else
 }
 
 @code {
+    // Parameter passed into this page to identify which booking details to load.
+    // Makes this page reusable for different jobs.
     [Parameter] public int BookingId { get; set; }
-
     [Parameter, SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
 
@@ -198,7 +199,7 @@ else
             return;
         }
 
-        // Include(Payment) -> needto show payment info and check pending cash
+        // Include(Payment) -> need to show payment info and check pending cash
         // DriverUserId check -> driver can only view their own job
         job = db.Bookings
             .Include(b => b.Payment)

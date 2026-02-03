@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 
 namespace TransportBookFSD.Models
+// FareCalculator estimates the ride fare based on distance and time
 {
     // Calculates an estimated ride fare based on pickup/dropoff text + pickup time
     // (simple rule-based calculator, not real-world pricing)
@@ -49,7 +50,7 @@ namespace TransportBookFSD.Models
             bool isPeak = (hour >= 7 && hour < 10) || (hour >= 17 && hour < 21);
             if (isPeak) fare *= 1.25m;
 
-            // Weekend surcharge (simple substitute for public holiday)
+            // Weekend surcharge (substitute for public holiday)
             bool isWeekend = pickupDateTime.DayOfWeek == DayOfWeek.Saturday ||
                              pickupDateTime.DayOfWeek == DayOfWeek.Sunday;
             if (isWeekend) fare *= 1.10m;
@@ -58,6 +59,7 @@ namespace TransportBookFSD.Models
             return Math.Round(fare, 2, MidpointRounding.AwayFromZero);
         }
 
+        // Converts pickup and dropoff names into coordinates and calculates distance between them
         private static double EstimateDistanceKm(string pickup, string dropoff)
         {
             if (!TryGetPoint(pickup, out var p1)) return 0;

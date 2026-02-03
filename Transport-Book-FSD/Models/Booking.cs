@@ -2,11 +2,11 @@
 
 namespace TransportBookFSD.Models
 {
-    public class Booking
+    public class Booking // Booking represents a ride request made by a passenger
     {
         public int BookingId { get; set; }
 
-        // ===== NEW (Identity-based) =====
+        // ===== Identity-based =====
         [Required, StringLength(450)]
         public string PassengerUserId { get; set; } = string.Empty;
 

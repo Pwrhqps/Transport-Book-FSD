@@ -101,8 +101,8 @@ else
 @code {
     private bool isLoading = true;
 
-    private List<Booking> allJobs = new();
-    private List<Booking> jobs = new();
+    private List<Booking> allJobs = new(); //the master list (everything loaded from database)
+    private List<Booking> jobs = new(); //the filtered list (based on date filter)
 
     private string? msg;
 
