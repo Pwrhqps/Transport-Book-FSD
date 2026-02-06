@@ -1,4 +1,8 @@
 ﻿@page "/"
+@using Microsoft.EntityFrameworkCore
+@using TransportBookFSD.Data
+@using TransportBookFSD.Models
+@inject AppDbContext db
 
 <PageTitle>Transport Booking</PageTitle>
 
@@ -22,7 +26,7 @@
             <div class="row g-3">
                 <div class="col-4">
                     <div class="card h-100">
-                        <img class="card-img-top" src="https://picsum.photos/seed/about1/400/250" />
+                        <img class="card-img-top" src="https://picsum.photos/seed/about1/400/250" alt="Safe rides" loading="lazy" />
                         <div class="card-body">
                             <small class="text-muted">Safe rides</small>
                         </div>
@@ -30,7 +34,7 @@
                 </div>
                 <div class="col-4">
                     <div class="card h-100">
-                        <img class="card-img-top" src="https://picsum.photos/seed/about2/400/250" />
+                        <img class="card-img-top" src="https://picsum.photos/seed/about2/400/250" alt="Reliable drivers" loading="lazy" />
                         <div class="card-body">
                             <small class="text-muted">Reliable drivers</small>
                         </div>
@@ -38,7 +42,7 @@
                 </div>
                 <div class="col-4">
                     <div class="card h-100">
-                        <img class="card-img-top" src="https://picsum.photos/seed/about3/400/250" />
+                        <img class="card-img-top" src="https://picsum.photos/seed/about3/400/250" alt="Fast booking" loading="lazy" />
                         <div class="card-body">
                             <small class="text-muted">Fast booking</small>
                         </div>
@@ -70,7 +74,7 @@
                         </h2>
                         <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAcc">
                             <div class="accordion-body">
-                                Card, PayNow, and E-wallet (can be expanded later).
+                                Cash and Transport Balance (Card). More methods can be added later.
                             </div>
                         </div>
                     </div>
@@ -89,34 +93,119 @@
             </div>
 
             <h5 class="fw-bold">Feedback & Reviews</h5>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="fw-bold">“Nice driver & safe ride!”</div>
-                            <small class="text-muted">★★★★★</small>
-                        </div>
+
+            @if (isLoadingReviews)
+            {
+                <p class="text-muted">Loading reviews...</p>
+            }
+            else if (latestReviews.Count == 0)
+            {
+                <div class="card">
+                    <div class="card-body">
+                        <div class="fw-bold">No reviews yet</div>
+                        <small class="text-muted">Complete a ride and leave feedback to appear here.</small>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="fw-bold">“Booking was very easy.”</div>
-                            <small class="text-muted">★★★★★</small>
+            }
+            else
+            {
+                <div class="row g-3">
+                    @foreach (var r in latestReviews)
+                    {
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="fw-bold">@Quote(r.Comment)</div>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <small class="text-muted">@r.PassengerName</small>
+                                        <small class="text-muted">@RenderStars(r.Rating)</small>
+                                    </div>
+
+                                    <small class="text-muted">@r.CreatedAt.ToString("dd MMM yyyy")</small>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    }
                 </div>
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="fw-bold">“Fast pickup time.”</div>
-                            <small class="text-muted">★★★★☆</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            }
 
         </div>
     </div>
 
 </div>
+
+@code {
+    private bool isLoadingReviews = true;
+    private List<ReviewCard> latestReviews = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLatestReviews();
+    }
+
+    private async Task LoadLatestReviews()
+    {
+        try
+        {
+            isLoadingReviews = true;
+
+            var feedbacks = await db.Feedbacks
+                .AsNoTracking()
+                .OrderByDescending(f => f.CreatedAt)
+                .Take(6)
+                .ToListAsync();
+
+            if (feedbacks.Count == 0)
+            {
+                latestReviews = new List<ReviewCard>();
+                return;
+            }
+
+            var passengerUserIds = feedbacks
+                .Select(f => f.PassengerUserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToList();
+
+            var nameMap = await db.PassengerProfiles
+                .AsNoTracking()
+                .Where(p => passengerUserIds.Contains(p.UserId))
+                .ToDictionaryAsync(p => p.UserId, p => p.FullName);
+
+            latestReviews = feedbacks
+                .Select(f => new ReviewCard
+                {
+                    PassengerName = nameMap.TryGetValue(f.PassengerUserId, out var name) ? name : "Passenger",
+                    Rating = f.Rating,
+                    Comment = string.IsNullOrWhiteSpace(f.Comment) ? "(No comment)" : f.Comment!,
+                    CreatedAt = f.CreatedAt
+                })
+                .ToList();
+        }
+        finally
+        {
+            isLoadingReviews = false;
+        }
+    }
+
+    private static string RenderStars(int rating)
+    {
+        if (rating < 0) rating = 0;
+        if (rating > 5) rating = 5;
+        return new string('★', rating) + new string('☆', 5 - rating);
+    }
+
+    private static string Quote(string text)
+    {
+        return "\u201c" + text + "\u201d";
+    }
+
+    private class ReviewCard
+    {
+        public string PassengerName { get; set; } = "";
+        public int Rating { get; set; }
+        public string Comment { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+    }
+}
